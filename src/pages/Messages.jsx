@@ -5,7 +5,7 @@ import { useAuth } from '../components/AuthProvider';
 import { supabase } from '../lib/supabaseClient';
 import {
   MessageCircle, Search, Send, User, Check, CheckCheck,
-  Stethoscope, ArrowLeft, ShieldAlert
+  Stethoscope, ArrowLeft, ShieldAlert, Image as ImageIcon, X, Loader,
 } from 'lucide-react';
 
 export default function Messages() {
@@ -22,10 +22,18 @@ export default function Messages() {
   const [sending, setSending] = useState(false);
   const [contactSearch, setContactSearch] = useState('');
 
+  // Image upload state
+  const [uploading, setUploading] = useState(false);
+  const [imagePreview, setImagePreview] = useState(null); // { file, url }
+  const fileInputRef = useRef(null);
+
+  // Lightbox state
+  const [lightboxUrl, setLightboxUrl] = useState(null);
+
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
 
-  // 1. Load all connected contacts (doctors for patients, patients for doctors)
+  // 1. Load all connected contacts
   const fetchConnections = useCallback(async () => {
     if (!user || !role) return;
 
@@ -48,7 +56,6 @@ export default function Messages() {
     // Enhance each connection with last message and unread count
     const enriched = await Promise.all(
       (data || []).map(async (conn) => {
-        // Fetch last message
         const { data: lastMsgs } = await supabase
           .from('messages')
           .select('*')
@@ -56,7 +63,6 @@ export default function Messages() {
           .order('created_at', { ascending: false })
           .limit(1);
 
-        // Fetch unread count for current user
         const { count: unread } = await supabase
           .from('messages')
           .select('*', { count: 'exact', head: true })
@@ -138,14 +144,17 @@ export default function Messages() {
           // If message belongs to active open chat
           if (activeConn?.id === newMsg.connection_id) {
             setMessages((prev) => {
-              const exists = prev.some(
-                (m) => m.id === newMsg.id || (m._tempId && m.content === newMsg.content && m.sender_id === newMsg.sender_id)
+              // Replace optimistic temp message if it matches
+              const tempIdx = prev.findIndex(
+                (m) => m._tempId && m.content === newMsg.content && m.sender_id === newMsg.sender_id
               );
-              if (exists) {
-                return prev.map((m) =>
-                  (m._tempId && m.content === newMsg.content && m.sender_id === newMsg.sender_id) ? newMsg : m
-                );
+              if (tempIdx !== -1) {
+                const updated = [...prev];
+                updated[tempIdx] = newMsg;
+                return updated;
               }
+              // Otherwise check for exact duplicate
+              if (prev.some((m) => m.id === newMsg.id)) return prev;
               return [...prev, newMsg];
             });
 
@@ -203,15 +212,85 @@ export default function Messages() {
     setConnections((prev) =>
       prev.map((c) => (c.id === conn.id ? { ...c, unreadCount: 0 } : c))
     );
+    // Clear any pending image preview when switching chats
+    clearImagePreview();
   };
 
-  // Send message — optimistic insert + Realtime dedup
+  // ── Image Upload Handling ──
+
+  const handleImageSelect = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type and size
+    const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (!validTypes.includes(file.type)) {
+      alert('Please select a valid image (JPEG, PNG, GIF, or WebP)');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) { // 5MB limit
+      alert('Image must be smaller than 5MB');
+      return;
+    }
+
+    const previewUrl = URL.createObjectURL(file);
+    setImagePreview({ file, url: previewUrl });
+  };
+
+  const clearImagePreview = () => {
+    if (imagePreview?.url) {
+      URL.revokeObjectURL(imagePreview.url);
+    }
+    setImagePreview(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const uploadImage = async (file) => {
+    const ext = file.name.split('.').pop();
+    const fileName = `${user.id}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+
+    const { data, error } = await supabase.storage
+      .from('chat-images')
+      .upload(fileName, file, {
+        cacheControl: '3600',
+        upsert: false,
+      });
+
+    if (error) throw error;
+
+    const { data: urlData } = supabase.storage
+      .from('chat-images')
+      .getPublicUrl(data.path);
+
+    return urlData.publicUrl;
+  };
+
+  // Handle drag & drop
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const file = e.dataTransfer?.files?.[0];
+    if (file && file.type.startsWith('image/')) {
+      const previewUrl = URL.createObjectURL(file);
+      setImagePreview({ file, url: previewUrl });
+    }
+  };
+
+  // ── Send Message (text and/or image) ──
+
   const handleSendMessage = async (e) => {
     e.preventDefault();
     const text = input.trim();
-    if (!text || !activeConn || sending) return;
+    const hasImage = !!imagePreview;
+    if ((!text && !hasImage) || !activeConn || sending) return;
 
     setSending(true);
+    setUploading(hasImage);
     setInput('');
 
     const tempId = `temp-${Date.now()}`;
@@ -220,32 +299,50 @@ export default function Messages() {
       _tempId: tempId,
       connection_id: activeConn.id,
       sender_id: user.id,
-      content: text,
+      content: text || (hasImage ? '📷 Image' : ''),
+      image_url: imagePreview?.url || null, // Local preview URL
       read: false,
       created_at: new Date().toISOString(),
     };
 
-    // Optimistically add to UI
     setMessages((prev) => [...prev, optimisticMsg]);
 
-    const { error } = await supabase
-      .from('messages')
-      .insert({
+    try {
+      let imageUrl = null;
+
+      if (hasImage) {
+        imageUrl = await uploadImage(imagePreview.file);
+      }
+
+      const insertPayload = {
         connection_id: activeConn.id,
         sender_id: user.id,
-        content: text,
-      });
+        content: text || (hasImage ? '📷 Image' : ''),
+      };
+      // Only include image_url if we actually uploaded an image
+      // This prevents errors if the image_url column doesn't exist yet
+      if (imageUrl) {
+        insertPayload.image_url = imageUrl;
+      }
 
-    if (error) {
-      console.error('Failed to send message:', error.message);
-      // Remove optimistic message on failure
+      const { error } = await supabase
+        .from('messages')
+        .insert(insertPayload);
+
+      if (error) {
+        console.error('Failed to send message:', error.message);
+        setMessages((prev) => prev.filter((m) => m._tempId !== tempId));
+        setInput(text);
+      }
+    } catch (err) {
+      console.error('Upload/send failed:', err.message);
       setMessages((prev) => prev.filter((m) => m._tempId !== tempId));
       setInput(text);
     }
-    // On success: do NOT manually update state here.
-    // The Realtime INSERT listener will replace the optimistic message.
 
+    clearImagePreview();
     setSending(false);
+    setUploading(false);
     inputRef.current?.focus();
   };
 
@@ -321,8 +418,11 @@ export default function Messages() {
                   const subtext = role === 'doctor'
                     ? (conn.otherParty?.location || 'Patient')
                     : (conn.otherParty?.speciality || 'Doctor');
-                  const lastMsgText = conn.lastMessage?.content || 'No messages yet';
-                  const lastMsgTime = conn.lastMessage ? formatTime(conn.lastMessage.created_at) : '';
+                  const lastMsg = conn.lastMessage;
+                  const lastMsgText = lastMsg?.image_url
+                    ? '📷 Image'
+                    : (lastMsg?.content || 'No messages yet');
+                  const lastMsgTime = lastMsg ? formatTime(lastMsg.created_at) : '';
 
                   return (
                     <div
@@ -356,7 +456,11 @@ export default function Messages() {
           {/* ── RIGHT PANEL: Active Chat Conversation ── */}
           <div className={`chat-main ${activeConn ? 'chat-main--active' : ''}`}>
             {activeConn ? (
-              <div className="chat-view">
+              <div
+                className="chat-view"
+                onDragOver={handleDragOver}
+                onDrop={handleDrop}
+              >
                 {/* Active Chat Header */}
                 <div className="chat-view__header">
                   <button className="chat-view__back-btn" onClick={() => setActiveConn(null)}>
@@ -386,7 +490,7 @@ export default function Messages() {
                     <div className="chat-view__empty">
                       <MessageCircle size={48} strokeWidth={1.2} />
                       <p>Start conversation with {activeConn.otherParty?.full_name?.split(' ')[0]}</p>
-                      <span>Send a message below. Messages are secure and private.</span>
+                      <span>Send a message or image below. Messages are secure and private.</span>
                     </div>
                   ) : (
                     messages.map((msg, i) => {
@@ -404,8 +508,25 @@ export default function Messages() {
                             </div>
                           )}
                           <div className={`chat-bubble-row ${isMine ? 'chat-bubble-row--mine' : ''}`}>
-                            <div className={`chat-bubble ${isMine ? 'chat-bubble--mine' : 'chat-bubble--theirs'}`}>
-                              <div className="chat-bubble__text">{msg.content}</div>
+                            <div className={`chat-bubble ${isMine ? 'chat-bubble--mine' : 'chat-bubble--theirs'} ${msg.image_url ? 'chat-bubble--has-image' : ''}`}>
+                              {/* Image */}
+                              {msg.image_url && (
+                                <div
+                                  className="chat-bubble__image-wrap"
+                                  onClick={() => setLightboxUrl(msg.image_url)}
+                                >
+                                  <img
+                                    src={msg.image_url}
+                                    alt="Shared image"
+                                    className="chat-bubble__image"
+                                    loading="lazy"
+                                  />
+                                </div>
+                              )}
+                              {/* Text (only show if there's actual text beyond the image placeholder) */}
+                              {msg.content && msg.content !== '📷 Image' && (
+                                <div className="chat-bubble__text">{msg.content}</div>
+                              )}
                               <div className="chat-bubble__meta">
                                 <span className="chat-bubble__time">{formatTime(msg.created_at)}</span>
                                 {isMine && (
@@ -423,12 +544,39 @@ export default function Messages() {
                   <div ref={messagesEndRef} />
                 </div>
 
+                {/* Image Preview Bar */}
+                {imagePreview && (
+                  <div className="chat-image-preview">
+                    <img src={imagePreview.url} alt="Preview" className="chat-image-preview__img" />
+                    <button className="chat-image-preview__remove" onClick={clearImagePreview}>
+                      <X size={16} />
+                    </button>
+                  </div>
+                )}
+
                 {/* Message Input Bar */}
                 <form className="chat-view__input-bar" onSubmit={handleSendMessage}>
+                  {/* Hidden file input */}
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/gif,image/webp"
+                    style={{ display: 'none' }}
+                    onChange={handleImageSelect}
+                  />
+                  <button
+                    type="button"
+                    className="chat-view__attach-btn"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={sending}
+                    title="Attach image"
+                  >
+                    <ImageIcon size={20} />
+                  </button>
                   <input
                     ref={inputRef}
                     className="chat-view__input"
-                    placeholder="Type a message..."
+                    placeholder={uploading ? 'Uploading image...' : 'Type a message...'}
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     disabled={sending}
@@ -436,9 +584,9 @@ export default function Messages() {
                   <button
                     type="submit"
                     className="btn btn--primary chat-view__send"
-                    disabled={!input.trim() || sending}
+                    disabled={(!input.trim() && !imagePreview) || sending}
                   >
-                    <Send size={18} />
+                    {uploading ? <Loader size={18} className="spin" /> : <Send size={18} />}
                   </button>
                 </form>
               </div>
@@ -458,6 +606,21 @@ export default function Messages() {
           </div>
         </div>
       </main>
+
+      {/* ── Image Lightbox ── */}
+      {lightboxUrl && (
+        <div className="lightbox-overlay" onClick={() => setLightboxUrl(null)}>
+          <button className="lightbox-close" onClick={() => setLightboxUrl(null)}>
+            <X size={24} />
+          </button>
+          <img
+            src={lightboxUrl}
+            alt="Full size"
+            className="lightbox-image"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
     </div>
   );
 }
