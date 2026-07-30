@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
+import { calculateAge } from '../lib/utils';
 import {
   User, Mail, Lock, Eye, EyeOff, Phone, MapPin, Calendar,
   GraduationCap, Award, Briefcase, Building2, Stethoscope, Link2, ChevronRight, ChevronLeft
@@ -57,12 +58,28 @@ export default function DoctorSignup() {
     setStep((s) => Math.max(s - 1, 1));
   };
 
+  // Computed age from DOB
+  const age = calculateAge(form.dob);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setLoading(true);
 
-    // 1. Create Supabase auth user
+    // 1. Check if this email is already registered as a patient
+    const { data: existingPatient } = await supabase
+      .from('patients')
+      .select('email')
+      .eq('email', form.email)
+      .maybeSingle();
+
+    if (existingPatient) {
+      setError('This email is already registered as a Patient. You cannot use the same email for both roles.');
+      setLoading(false);
+      return;
+    }
+
+    // 2. Create Supabase auth user
     const { data, error: authError } = await supabase.auth.signUp({
       email: form.email,
       password: form.password,
@@ -72,6 +89,7 @@ export default function DoctorSignup() {
           full_name: form.fullName,
           mobile: form.mobile,
           dob: form.dob,
+          age: age,
           location: form.location,
           degree: form.degree,
           certification: form.certification,
@@ -89,12 +107,13 @@ export default function DoctorSignup() {
       return;
     }
 
-    // 2. Insert doctor profile
+    // 3. Insert doctor profile with computed age
     if (data?.user) {
       await supabase.from('doctors').insert({
         id: data.user.id,
         full_name: form.fullName,
         dob: form.dob,
+        age: age,
         mobile: form.mobile,
         email: form.email,
         location: form.location,
@@ -195,7 +214,24 @@ export default function DoctorSignup() {
                   </div>
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Date of Birth</label>
+                  <label className="form-label">
+                    Date of Birth
+                    {age !== null && (
+                      <span style={{
+                        marginLeft: '.5rem',
+                        padding: '.15rem .5rem',
+                        background: 'var(--primary-50)',
+                        color: 'var(--primary-700)',
+                        borderRadius: 'var(--radius-full)',
+                        fontSize: '.7rem',
+                        fontWeight: 700,
+                        textTransform: 'none',
+                        letterSpacing: 0,
+                      }}>
+                        Age: {age} yrs
+                      </span>
+                    )}
+                  </label>
                   <div className="form-input-icon-wrap">
                     <Calendar className="form-input-icon" />
                     <input

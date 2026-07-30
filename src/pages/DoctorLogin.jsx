@@ -18,13 +18,22 @@ export default function DoctorLogin() {
     setError('');
     setLoading(true);
 
-    const { error: authError } = await supabase.auth.signInWithPassword({
+    const { data, error: authError } = await supabase.auth.signInWithPassword({
       email: form.email,
       password: form.password,
     });
 
     if (authError) {
       setError(authError.message);
+      setLoading(false);
+      return;
+    }
+
+    // Check that this user is actually a doctor, not a patient
+    const role = data?.user?.user_metadata?.role;
+    if (role && role !== 'doctor') {
+      await supabase.auth.signOut();
+      setError('This account is registered as a Patient. Please use the Patient login page.');
       setLoading(false);
       return;
     }

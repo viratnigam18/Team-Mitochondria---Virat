@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
+import { calculateAge } from '../lib/utils';
 import {
   User, Mail, Lock, Eye, EyeOff, Phone, MapPin, Calendar,
   Droplets, AlertTriangle, Heart, ChevronRight, ChevronLeft, ShieldPlus
@@ -40,10 +41,26 @@ export default function PatientSignup() {
     setStep((s) => Math.max(s - 1, 1));
   };
 
+  // Computed age from DOB
+  const age = calculateAge(form.dob);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setLoading(true);
+
+    // 1. Check if this email is already registered as a doctor
+    const { data: existingDoctor } = await supabase
+      .from('doctors')
+      .select('email')
+      .eq('email', form.email)
+      .maybeSingle();
+
+    if (existingDoctor) {
+      setError('This email is already registered as a Doctor. You cannot use the same email for both roles.');
+      setLoading(false);
+      return;
+    }
 
     const { data, error: authError } = await supabase.auth.signUp({
       email: form.email,
@@ -54,6 +71,7 @@ export default function PatientSignup() {
           full_name: form.fullName,
           mobile: form.mobile,
           dob: form.dob,
+          age: age,
           location: form.location,
           blood_group: form.bloodGroup,
           allergies: form.allergies,
@@ -69,12 +87,13 @@ export default function PatientSignup() {
       return;
     }
 
-    // Insert patient profile
+    // Insert patient profile with computed age
     if (data?.user) {
       await supabase.from('patients').insert({
         id: data.user.id,
         full_name: form.fullName,
         dob: form.dob,
+        age: age,
         mobile: form.mobile,
         email: form.email,
         location: form.location,
@@ -174,7 +193,24 @@ export default function PatientSignup() {
                   </div>
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Date of Birth</label>
+                  <label className="form-label">
+                    Date of Birth
+                    {age !== null && (
+                      <span style={{
+                        marginLeft: '.5rem',
+                        padding: '.15rem .5rem',
+                        background: '#fef3c7',
+                        color: '#92400e',
+                        borderRadius: 'var(--radius-full)',
+                        fontSize: '.7rem',
+                        fontWeight: 700,
+                        textTransform: 'none',
+                        letterSpacing: 0,
+                      }}>
+                        Age: {age} yrs
+                      </span>
+                    )}
+                  </label>
                   <div className="form-input-icon-wrap">
                     <Calendar className="form-input-icon" />
                     <input
