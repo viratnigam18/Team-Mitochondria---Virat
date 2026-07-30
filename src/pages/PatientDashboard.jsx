@@ -82,6 +82,37 @@ export default function PatientDashboard() {
     return () => supabase.removeChannel(channel);
   }, [user, addToast]);
 
+  // Realtime: new checkups inserted/updated
+  useEffect(() => {
+    if (!user) return;
+
+    const channel = supabase
+      .channel('patient-checkups')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'checkups',
+          filter: `patient_id=eq.${user.id}`,
+        },
+        () => {
+          fetchData();
+        }
+      )
+      .subscribe();
+
+    // Polling backup every 6 seconds to ensure data stays fresh
+    const interval = setInterval(() => {
+      fetchData();
+    }, 6000);
+
+    return () => {
+      supabase.removeChannel(channel);
+      clearInterval(interval);
+    };
+  }, [user]);
+
   // Realtime: new chat messages (for unread badges)
   useEffect(() => {
     if (!user) return;
@@ -353,7 +384,7 @@ export default function PatientDashboard() {
                 <p className="widget-empty">Loading nearby hospital directory...</p>
               ) : (
                 <div className="hospital-list">
-                  {hospitals.map((h) => (
+                  {hospitals.slice(0, 3).map((h) => (
                     <div key={h.id} className="hospital-item">
                       <div className="hospital-item__info">
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
@@ -376,21 +407,6 @@ export default function PatientDashboard() {
                         <div className="hospital-item__dist">
                           <MapPin size={11} /> {h.subtitle || `${h.dist} km away`}
                         </div>
-                        {h.rating && (
-                          <div style={{ fontSize: '0.68rem', color: '#d97706', fontWeight: '600' }}>
-                            ★ {h.rating} ({h.stars} reviews)
-                          </div>
-                        )}
-                        {h.desc && (
-                          <div style={{ fontSize: '0.7rem', color: '#475569', marginTop: '0.2rem', lineHeight: '1.3' }}>
-                            {h.desc}
-                          </div>
-                        )}
-                        {h.phone && (
-                          <div className="hospital-item__phone" style={{ marginTop: '0.2rem' }}>
-                            <Phone size={11} /> {h.phone}
-                          </div>
-                        )}
                       </div>
                       <a
                         href={h.mapsUrl || (h.phone ? `tel:${h.phone}` : `https://maps.google.com/?q=${h.lat},${h.lon}`)}

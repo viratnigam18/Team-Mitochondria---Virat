@@ -176,9 +176,21 @@ function ResultCard({ data, severityConfig }) {
   const sev = severityConfig[data.severity] || severityConfig.medium;
   return (
     <div className="result-card">
-      <div className="result-card__severity" style={{ background: sev.bg, color: sev.color }}>
-        <AlertTriangle size={18} /><span>{sev.label}</span>
+      <div className="result-card__severity" style={{ background: sev.bg, color: sev.color, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+          <AlertTriangle size={18} /><span>{sev.label}</span>
+        </div>
+        {data.saved && (
+          <span style={{ fontSize: '0.72rem', background: 'rgba(255,255,255,0.7)', color: '#065f46', padding: '0.15rem 0.5rem', borderRadius: '999px', fontWeight: 600 }}>
+            📋 Saved to History
+          </span>
+        )}
       </div>
+      {data.saveError && (
+        <div className="alert alert--error" style={{ margin: '0.5rem', fontSize: '0.8rem' }}>
+          ⚠️ Could not save to history: {data.saveError}
+        </div>
+      )}
       {data.severity === 'red' && (
         <div className="result-card__emergency">
           <div className="result-card__emergency-text"><AlertTriangle size={20} /><strong>Needs immediate medical attention!</strong></div>

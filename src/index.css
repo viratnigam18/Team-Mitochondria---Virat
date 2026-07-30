@@ -234,11 +234,11 @@ h1,h2,h3,h4,h5,h6 { font-family:'Outfit','Inter',sans-serif; font-weight:700; li
   grid-template-rows: auto;
   gap: 1rem;
   padding: 1rem 1.75rem;
-  min-height: 420px;
+  align-items: start;
 }
 
 .dashboard-grid__left { display: flex; flex-direction: column; gap: .75rem; }
-.dashboard-grid__map { border-radius: var(--radius-lg); overflow: hidden; position: relative; min-height: 380px; }
+.dashboard-grid__map { border-radius: var(--radius-lg); overflow: hidden; position: relative; height: 260px; max-height: 260px; }
 .dashboard-grid__right { display: flex; flex-direction: column; gap: .75rem; }
 
 /* Widget card */
@@ -388,7 +388,14 @@ h1,h2,h3,h4,h5,h6 { font-family:'Outfit','Inter',sans-serif; font-weight:700; li
 }
 
 /* Hospital list */
-.hospital-list { display: flex; flex-direction: column; gap: .5rem; }
+.hospital-list {
+  display: flex;
+  flex-direction: column;
+  gap: .5rem;
+  max-height: 170px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
 
 .hospital-item {
   display: flex;
@@ -447,8 +454,8 @@ h1,h2,h3,h4,h5,h6 { font-family:'Outfit','Inter',sans-serif; font-weight:700; li
   border-radius: var(--radius-lg);
   overflow: hidden;
   position: relative;
-  min-height: 420px;
-  height: 100%;
+  height: 260px;
+  max-height: 260px;
   display: flex;
   flex-direction: column;
 }
@@ -456,9 +463,9 @@ h1,h2,h3,h4,h5,h6 { font-family:'Outfit','Inter',sans-serif; font-weight:700; li
 .map-wrapper {
   position: relative;
   width: 100%;
-  height: 100%;
+  height: 260px;
+  max-height: 260px;
   flex: 1;
-  min-height: 420px;
   border-radius: var(--radius-lg);
   overflow: hidden;
   background: var(--surface-100);
@@ -468,8 +475,8 @@ h1,h2,h3,h4,h5,h6 { font-family:'Outfit','Inter',sans-serif; font-weight:700; li
 
 .map-leaflet {
   width: 100%;
-  height: 100%;
-  min-height: 420px;
+  height: 260px;
+  max-height: 260px;
   z-index: 1;
 }
 
@@ -894,6 +901,7 @@ h1,h2,h3,h4,h5,h6 { font-family:'Outfit','Inter',sans-serif; font-weight:700; li
 
 .tabs-section {
   padding: 0 1.75rem 2rem;
+  margin-top: 0.5rem;
 }
 
 .tabs-bar {

@@ -141,51 +141,68 @@ Analyze these symptoms and respond with the JSON format specified.`;
     parsed.severity = 'medium';
   }
 
-  // If AI needs more info, return follow-up question without saving
+  // Sanitize follow_up_question — AI models often return "none", "null", "N/A", "no" etc. as string
+  if (parsed.follow_up_question) {
+    const fuStr = String(parsed.follow_up_question).trim().toLowerCase();
+    if (['none', 'null', 'no', 'n/a', 'false', '0', 'undefined', ''].includes(fuStr)) {
+      parsed.follow_up_question = null;
+    }
+  }
+
+  // If AI truly needs a follow-up question from the patient, return early
   if (parsed.follow_up_question) {
     return { ...parsed, saved: false };
   }
 
   // Save completed analysis to checkups table
-  if (userId) {
-    const checkupPayload = {
-      patient_id: userId,
-      symptom_text: symptomText,
-      severity: parsed.severity,
-      ai_advice: parsed.cause_guess,
-      home_remedy: parsed.home_remedy,
-      medicine: parsed.medicine,
-      food_advice: parsed.food_advice,
-      cause_guess: parsed.cause_guess,
-      future_risk: parsed.future_risk,
-      avoid_list: parsed.avoid_list,
-    };
+  let isSaved = false;
+  let saveErrorMessage = null;
 
-    let { error: dbError } = await supabase.from('checkups').insert(checkupPayload);
+  try {
+    // 1. Get exact authenticated user ID from active Supabase session to satisfy RLS policy
+    const { data: authUserData } = await supabase.auth.getUser();
+    const userObj = authUserData?.user;
+    const targetPatientId = userObj?.id || userId;
 
-    // If foreign key constraint failed because patient row doesn't exist yet, self-heal
-    if (dbError && dbError.message?.includes('foreign key constraint')) {
-      console.warn('Patient row missing for checkups insert. Creating patient profile first...');
-      const { data: authUserData } = await supabase.auth.getUser();
-      if (authUserData?.user) {
-        await supabase.from('patients').upsert({
-          id: userId,
-          full_name: authUserData.user.user_metadata?.full_name || 'Patient',
-          email: authUserData.user.email,
-        }, { onConflict: 'id' });
+    if (targetPatientId) {
+      const userEmail = userObj?.email || `${targetPatientId.slice(0, 8)}@patient.local`;
+      const userName = userObj?.user_metadata?.full_name || patientContext.fullName || 'Patient';
 
-        // Retry insert
-        const retry = await supabase.from('checkups').insert(checkupPayload);
-        dbError = retry.error;
+      // 2. Ensure patient profile row exists in `patients` table
+      await supabase.from('patients').upsert({
+        id: targetPatientId,
+        full_name: userName,
+        email: userEmail,
+      }, { onConflict: 'id', ignoreDuplicates: true });
+
+      // 3. Insert checkup record
+      const checkupPayload = {
+        patient_id: targetPatientId,
+        symptom_text: symptomText,
+        severity: parsed.severity,
+        ai_advice: parsed.cause_guess || parsed.home_remedy,
+        home_remedy: parsed.home_remedy,
+        medicine: parsed.medicine,
+        food_advice: parsed.food_advice,
+        cause_guess: parsed.cause_guess,
+        future_risk: parsed.future_risk,
+        avoid_list: parsed.avoid_list,
+      };
+
+      let { error: dbError } = await supabase.from('checkups').insert(checkupPayload);
+
+      if (dbError) {
+        console.error('Failed to save checkup to DB:', dbError.message);
+        saveErrorMessage = dbError.message;
+      } else {
+        console.log('✅ Checkup successfully saved to patient history!');
+        isSaved = true;
       }
     }
-
-    if (dbError) {
-      console.error('Failed to save checkup to DB:', dbError.message);
-    } else {
-      console.log('Checkup successfully saved to patient history!');
-    }
+  } catch (err) {
+    console.error('Checkup save exception:', err.message);
+    saveErrorMessage = err.message;
   }
 
-  return { ...parsed, saved: true };
+  return { ...parsed, saved: isSaved, saveError: saveErrorMessage };
 }
