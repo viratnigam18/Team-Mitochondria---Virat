@@ -7,43 +7,30 @@ import PatientSignup from './pages/PatientSignup.jsx';
 import DoctorDashboard from './pages/DoctorDashboard.jsx';
 import PatientDashboard from './pages/PatientDashboard.jsx';
 import TriageChat from './pages/TriageChat.jsx';
+import PatientProfile from './pages/PatientProfile.jsx';
+import DoctorProfile from './pages/DoctorProfile.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
 
 export default function App() {
   return (
     <Routes>
-      {/* Public routes */}
+      {/* Public */}
       <Route path="/" element={<Welcome />} />
       <Route path="/doctor/login" element={<DoctorLogin />} />
       <Route path="/doctor/signup" element={<DoctorSignup />} />
       <Route path="/patient/login" element={<PatientLogin />} />
       <Route path="/patient/signup" element={<PatientSignup />} />
 
-      {/* Protected routes — dashboard team will wire auth guard later */}
-      <Route
-        path="/doctor/dashboard"
-        element={
-          <ProtectedRoute>
-            <DoctorDashboard />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/patient/dashboard"
-        element={
-          <ProtectedRoute>
-            <PatientDashboard />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/triage"
-        element={
-          <ProtectedRoute>
-            <TriageChat />
-          </ProtectedRoute>
-        }
-      />
+      {/* Doctor routes */}
+      <Route path="/doctor/dashboard" element={<ProtectedRoute requiredRole="doctor"><DoctorDashboard /></ProtectedRoute>} />
+      <Route path="/doctor/profile" element={<ProtectedRoute requiredRole="doctor"><DoctorProfile /></ProtectedRoute>} />
+
+      {/* Patient routes */}
+      <Route path="/patient/dashboard" element={<ProtectedRoute requiredRole="patient"><PatientDashboard /></ProtectedRoute>} />
+      <Route path="/patient/profile" element={<ProtectedRoute requiredRole="patient"><PatientProfile /></ProtectedRoute>} />
+
+      {/* Triage — patients only */}
+      <Route path="/triage" element={<ProtectedRoute requiredRole="patient"><TriageChat /></ProtectedRoute>} />
     </Routes>
   );
 }
