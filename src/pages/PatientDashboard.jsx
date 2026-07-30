@@ -1,13 +1,14 @@
-import { useState, useEffect, lazy, Suspense } from 'react';
+import { useState, useEffect, lazy, Suspense, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
 import { useAuth } from '../components/AuthProvider';
 import { supabase } from '../lib/supabaseClient';
+import ChatWindow from '../components/ChatWindow';
 import {
   MessageCircle, Search, UserPlus, Clock, CheckCircle2,
   XCircle, ChevronDown, ChevronUp, User, Stethoscope,
   GraduationCap, Building2, MapPin, Phone, Droplets,
-  Briefcase, AlertTriangle,
+  Briefcase, AlertTriangle, X,
 } from 'lucide-react';
 
 const NearbyMap = lazy(() => import('../components/NearbyMap'));
@@ -32,7 +33,115 @@ export default function PatientDashboard() {
   const [hospitals, setHospitals] = useState([]);
   const [lastCheckup, setLastCheckup] = useState(null);
 
+  // Chat state
+  const [chatOpen, setChatOpen] = useState(null); // { connectionId, doctorName }
+  const [unreadCounts, setUnreadCounts] = useState({}); // { connectionId: count }
+
+  // Toast state
+  const [toasts, setToasts] = useState([]);
+
+  const addToast = useCallback((message, type = 'info') => {
+    const id = Date.now();
+    setToasts((prev) => [...prev, { id, message, type }]);
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 5000);
+  }, []);
+
   useEffect(() => { if (user) fetchData(); }, [user]);
+
+  // Realtime: connection status changes (doctor accepted/rejected)
+  useEffect(() => {
+    if (!user) return;
+
+    const channel = supabase
+      .channel('patient-connections')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'connections',
+          filter: `patient_id=eq.${user.id}`,
+        },
+        async (payload) => {
+          const updated = payload.new;
+          if (updated.status === 'accepted') {
+            const { data: doctor } = await supabase
+              .from('doctors')
+              .select('full_name')
+              .eq('id', updated.doctor_id)
+              .maybeSingle();
+            addToast(`✅ Dr. ${doctor?.full_name || 'Your doctor'} accepted your request!`, 'success');
+          } else if (updated.status === 'rejected') {
+            addToast(`❌ A doctor declined your request.`, 'error');
+          }
+          fetchData();
+        }
+      )
+      .subscribe();
+
+    return () => supabase.removeChannel(channel);
+  }, [user, addToast]);
+
+  // Realtime: new chat messages (for unread badges)
+  useEffect(() => {
+    if (!user) return;
+
+    fetchUnreadCounts();
+
+    const channel = supabase
+      .channel('patient-messages')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+        },
+        (payload) => {
+          const msg = payload.new;
+          if (msg.sender_id !== user.id) {
+            if (chatOpen?.connectionId === msg.connection_id) return;
+
+            setUnreadCounts((prev) => ({
+              ...prev,
+              [msg.connection_id]: (prev[msg.connection_id] || 0) + 1,
+            }));
+
+            addToast(`💬 New message from your doctor!`, 'message');
+          }
+        }
+      )
+      .subscribe();
+
+    return () => supabase.removeChannel(channel);
+  }, [user, chatOpen, addToast]);
+
+  const fetchUnreadCounts = async () => {
+    if (!user) return;
+
+    const { data: conns } = await supabase
+      .from('connections')
+      .select('id')
+      .eq('patient_id', user.id)
+      .eq('status', 'accepted');
+
+    if (!conns || conns.length === 0) return;
+
+    const counts = {};
+    for (const conn of conns) {
+      const { count } = await supabase
+        .from('messages')
+        .select('*', { count: 'exact', head: true })
+        .eq('connection_id', conn.id)
+        .eq('read', false)
+        .neq('sender_id', user.id);
+
+      if (count > 0) counts[conn.id] = count;
+    }
+    setUnreadCounts(counts);
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -65,6 +174,22 @@ export default function PatientDashboard() {
 
   const sev = lastCheckup ? SEVERITY_CFG[lastCheckup.severity] : null;
 
+  const openChat = (connectionId, doctorName) => {
+    setChatOpen({ connectionId, doctorName });
+    setUnreadCounts((prev) => {
+      const next = { ...prev };
+      delete next[connectionId];
+      return next;
+    });
+  };
+
+  const closeChat = () => {
+    setChatOpen(null);
+    fetchUnreadCounts();
+  };
+
+  const totalUnread = Object.values(unreadCounts).reduce((sum, c) => sum + c, 0);
+
   return (
     <div className="app-layout">
       <Sidebar />
@@ -75,9 +200,17 @@ export default function PatientDashboard() {
             <h1 className="page-title">My Health Dashboard</h1>
             <p className="page-subtitle">Welcome back, {profile?.full_name?.split(' ')[0] || 'Patient'} 👋</p>
           </div>
-          <button className="btn btn--primary" onClick={() => navigate('/triage')}>
-            <MessageCircle size={18} /> New Checkup
-          </button>
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+            {totalUnread > 0 && (
+              <div className="unread-summary">
+                <MessageCircle size={16} />
+                <span>{totalUnread} unread</span>
+              </div>
+            )}
+            <button className="btn btn--primary" onClick={() => navigate('/triage')}>
+              <MessageCircle size={18} /> New Checkup
+            </button>
+          </div>
         </div>
 
         {/* Stats row */}
@@ -288,7 +421,14 @@ export default function PatientDashboard() {
                   </div>
                 ) : (
                   [...connectedDoctors, ...pendingDoctors].map((conn) => (
-                    <DoctorCard key={conn.id} doctor={conn.doctors} status={conn.status} />
+                    <DoctorCard
+                      key={conn.id}
+                      doctor={conn.doctors}
+                      status={conn.status}
+                      connectionId={conn.id}
+                      unreadCount={unreadCounts[conn.id] || 0}
+                      onChat={() => openChat(conn.id, conn.doctors?.full_name || 'Doctor')}
+                    />
                   ))
                 )}
               </div>
@@ -376,12 +516,25 @@ export default function PatientDashboard() {
           </div>
         </div>
       </main>
+
+      {/* Chat panel */}
+      {chatOpen && (
+        <ChatWindow
+          connectionId={chatOpen.connectionId}
+          currentUserId={user.id}
+          otherUserName={chatOpen.doctorName}
+          onClose={closeChat}
+        />
+      )}
+
+      {/* Toast notifications */}
+      <ToastContainer toasts={toasts} onDismiss={(id) => setToasts((prev) => prev.filter((t) => t.id !== id))} />
     </div>
   );
 }
 
 /* ── Sub-components ── */
-function DoctorCard({ doctor, status, onConnect, connecting }) {
+function DoctorCard({ doctor, status, onConnect, connecting, connectionId, unreadCount, onChat }) {
   if (!doctor) return null;
   return (
     <div className="doctor-card">
@@ -397,7 +550,16 @@ function DoctorCard({ doctor, status, onConnect, connecting }) {
       </div>
       <div className="doctor-card__action">
         {status === 'accepted' ? (
-          <span className="status-badge status-badge--accepted"><CheckCircle2 size={13} /> Connected</span>
+          <div className="doctor-card__connected-actions">
+            <span className="status-badge status-badge--accepted"><CheckCircle2 size={13} /> Connected</span>
+            {onChat && (
+              <button className="btn btn--outline btn--sm btn--chat" onClick={onChat}>
+                <MessageCircle size={13} />
+                Chat
+                {unreadCount > 0 && <span className="unread-badge">{unreadCount}</span>}
+              </button>
+            )}
+          </div>
         ) : status === 'pending' ? (
           <span className="status-badge status-badge--pending"><Clock size={13} /> Pending</span>
         ) : status === 'rejected' ? (
@@ -418,6 +580,22 @@ function DetailRow({ label, value, highlight }) {
     <div className={`detail-row ${highlight ? 'detail-row--highlight' : ''}`}>
       <div className="detail-row__label">{label}</div>
       <div className="detail-row__value">{value}</div>
+    </div>
+  );
+}
+
+function ToastContainer({ toasts, onDismiss }) {
+  if (toasts.length === 0) return null;
+  return (
+    <div className="toast-container">
+      {toasts.map((toast) => (
+        <div key={toast.id} className={`toast toast--${toast.type}`}>
+          <span className="toast__message">{toast.message}</span>
+          <button className="toast__close" onClick={() => onDismiss(toast.id)}>
+            <X size={14} />
+          </button>
+        </div>
+      ))}
     </div>
   );
 }

@@ -1,19 +1,64 @@
+import { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import { useAuth } from './AuthProvider';
 import {
   LayoutDashboard,
   MessageCircle,
-  History,
   User,
   LogOut,
-  Stethoscope,
 } from 'lucide-react';
 
 export default function Sidebar() {
-  const { role } = useAuth();
+  const { role, user } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+  const [totalUnread, setTotalUnread] = useState(0);
+
+  // Fetch unread message count
+  useEffect(() => {
+    if (!user) return;
+
+    const fetchUnread = async () => {
+      const table = role === 'doctor' ? 'doctor_id' : 'patient_id';
+      const { data: conns } = await supabase
+        .from('connections')
+        .select('id')
+        .eq(table, user.id)
+        .eq('status', 'accepted');
+
+      if (!conns || conns.length === 0) {
+        setTotalUnread(0);
+        return;
+      }
+
+      let total = 0;
+      for (const conn of conns) {
+        const { count } = await supabase
+          .from('messages')
+          .select('*', { count: 'exact', head: true })
+          .eq('connection_id', conn.id)
+          .eq('read', false)
+          .neq('sender_id', user.id);
+        total += count || 0;
+      }
+      setTotalUnread(total);
+    };
+
+    fetchUnread();
+
+    // Re-check on message events
+    const channel = supabase
+      .channel('sidebar-unread')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'messages' },
+        () => fetchUnread()
+      )
+      .subscribe();
+
+    return () => supabase.removeChannel(channel);
+  }, [user, role]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -55,6 +100,18 @@ export default function Sidebar() {
             <span>{link.label}</span>
           </Link>
         ))}
+
+        {/* Messages indicator — shows on dashboard link */}
+        {totalUnread > 0 && (
+          <Link
+            to={role === 'doctor' ? '/doctor/dashboard' : '/patient/dashboard'}
+            className="sidebar__link sidebar__link--messages"
+          >
+            <MessageCircle size={20} />
+            <span>Messages</span>
+            <span className="sidebar__unread-badge">{totalUnread}</span>
+          </Link>
+        )}
       </nav>
 
       {/* Bottom: role badge + logout */}

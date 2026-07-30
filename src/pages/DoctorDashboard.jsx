@@ -1,11 +1,12 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect, useCallback } from 'react';
 import Sidebar from '../components/Sidebar';
 import { useAuth } from '../components/AuthProvider';
 import { supabase } from '../lib/supabaseClient';
+import ChatWindow from '../components/ChatWindow';
 import {
   Users, Clock, CheckCircle2, XCircle, ChevronDown, ChevronUp,
   User, MapPin, Droplets, AlertTriangle, Phone, ArrowLeft, Send,
+  MessageCircle, X, Bell,
 } from 'lucide-react';
 
 const SEVERITY_CFG = {
@@ -26,7 +27,119 @@ export default function DoctorDashboard() {
   const [savingNote, setSavingNote] = useState(null);
   const [updatingConn, setUpdatingConn] = useState(null);
 
+  // Chat state
+  const [chatOpen, setChatOpen] = useState(null); // { connectionId, patientName }
+  const [unreadCounts, setUnreadCounts] = useState({}); // { connectionId: count }
+
+  // Toast notifications
+  const [toasts, setToasts] = useState([]);
+
+  const addToast = useCallback((message, type = 'info') => {
+    const id = Date.now();
+    setToasts((prev) => [...prev, { id, message, type }]);
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 5000);
+  }, []);
+
   useEffect(() => { if (user) fetchData(); }, [user]);
+
+  // Realtime subscription for new connection requests
+  useEffect(() => {
+    if (!user) return;
+
+    const channel = supabase
+      .channel('doctor-connections')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'connections',
+          filter: `doctor_id=eq.${user.id}`,
+        },
+        async (payload) => {
+          if (payload.new.status === 'pending') {
+            // Fetch patient name for the toast
+            const { data: patient } = await supabase
+              .from('patients')
+              .select('full_name')
+              .eq('id', payload.new.patient_id)
+              .maybeSingle();
+
+            const name = patient?.full_name || 'A patient';
+            addToast(`🔔 New request from ${name}!`, 'request');
+            fetchData(); // Refresh lists
+          }
+        }
+      )
+      .subscribe();
+
+    return () => supabase.removeChannel(channel);
+  }, [user, addToast]);
+
+  // Realtime subscription for new chat messages (for unread badges)
+  useEffect(() => {
+    if (!user) return;
+
+    // Fetch initial unread counts
+    fetchUnreadCounts();
+
+    const channel = supabase
+      .channel('doctor-messages')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+        },
+        (payload) => {
+          const msg = payload.new;
+          // Only count messages from others
+          if (msg.sender_id !== user.id) {
+            // If chat is open for this connection, don't increment
+            if (chatOpen?.connectionId === msg.connection_id) return;
+
+            setUnreadCounts((prev) => ({
+              ...prev,
+              [msg.connection_id]: (prev[msg.connection_id] || 0) + 1,
+            }));
+
+            addToast(`💬 New message received!`, 'message');
+          }
+        }
+      )
+      .subscribe();
+
+    return () => supabase.removeChannel(channel);
+  }, [user, chatOpen, addToast]);
+
+  const fetchUnreadCounts = async () => {
+    if (!user) return;
+
+    // Get all accepted connections for this doctor
+    const { data: conns } = await supabase
+      .from('connections')
+      .select('id')
+      .eq('doctor_id', user.id)
+      .eq('status', 'accepted');
+
+    if (!conns || conns.length === 0) return;
+
+    const counts = {};
+    for (const conn of conns) {
+      const { count } = await supabase
+        .from('messages')
+        .select('*', { count: 'exact', head: true })
+        .eq('connection_id', conn.id)
+        .eq('read', false)
+        .neq('sender_id', user.id);
+
+      if (count > 0) counts[conn.id] = count;
+    }
+    setUnreadCounts(counts);
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -71,6 +184,21 @@ export default function DoctorDashboard() {
     setSavingNote(null);
   };
 
+  const openChat = (connectionId, patientName) => {
+    setChatOpen({ connectionId, patientName });
+    // Clear unread for this connection
+    setUnreadCounts((prev) => {
+      const next = { ...prev };
+      delete next[connectionId];
+      return next;
+    });
+  };
+
+  const closeChat = () => {
+    setChatOpen(null);
+    fetchUnreadCounts();
+  };
+
   if (loading) {
     return (
       <div className="app-layout">
@@ -84,6 +212,9 @@ export default function DoctorDashboard() {
 
   /* ── Patient Detail View ── */
   if (selectedPatient) {
+    // Find connection for this patient to enable chat
+    const patientConn = connectedPatients.find((c) => c.patient_id === selectedPatient.id);
+
     return (
       <div className="app-layout">
         <Sidebar />
@@ -92,6 +223,14 @@ export default function DoctorDashboard() {
             <button className="btn btn--ghost" onClick={() => setSelectedPatient(null)}>
               <ArrowLeft size={18} /> Back to Dashboard
             </button>
+            {patientConn && (
+              <button
+                className="btn btn--primary"
+                onClick={() => openChat(patientConn.id, selectedPatient.full_name)}
+              >
+                <MessageCircle size={18} /> Chat with {selectedPatient.full_name?.split(' ')[0]}
+              </button>
+            )}
           </div>
 
           <div className="patient-profile-card">
@@ -171,11 +310,26 @@ export default function DoctorDashboard() {
             )}
           </div>
         </main>
+
+        {/* Chat panel */}
+        {chatOpen && (
+          <ChatWindow
+            connectionId={chatOpen.connectionId}
+            currentUserId={user.id}
+            otherUserName={chatOpen.patientName}
+            onClose={closeChat}
+          />
+        )}
+
+        {/* Toast notifications */}
+        <ToastContainer toasts={toasts} onDismiss={(id) => setToasts((prev) => prev.filter((t) => t.id !== id))} />
       </div>
     );
   }
 
   /* ── Main Dashboard ── */
+  const totalUnread = Object.values(unreadCounts).reduce((sum, c) => sum + c, 0);
+
   return (
     <div className="app-layout">
       <Sidebar />
@@ -185,6 +339,12 @@ export default function DoctorDashboard() {
             <h1 className="page-title">Doctor Dashboard</h1>
             <p className="page-subtitle">Manage your patients and connections</p>
           </div>
+          {totalUnread > 0 && (
+            <div className="unread-summary">
+              <MessageCircle size={18} />
+              <span>{totalUnread} unread message{totalUnread !== 1 ? 's' : ''}</span>
+            </div>
+          )}
         </div>
 
         <div className="stats-row">
@@ -196,12 +356,16 @@ export default function DoctorDashboard() {
             <span className="stat-pill__value">{connectedPatients.length}</span>
             <span className="stat-pill__label">My Patients</span>
           </div>
+          <div className="stat-pill">
+            <span className="stat-pill__value">{totalUnread}</span>
+            <span className="stat-pill__label">Unread</span>
+          </div>
         </div>
 
         {/* Pending Requests */}
         {pendingRequests.length > 0 && (
           <>
-            <h3 className="section-title"><Clock size={18} /> Pending Requests</h3>
+            <h3 className="section-title"><Bell size={18} /> Pending Requests</h3>
             <div className="cards-grid" style={{ marginBottom: '1.5rem' }}>
               {pendingRequests.map((req) => (
                 <div key={req.id} className="patient-request-card">
@@ -236,8 +400,8 @@ export default function DoctorDashboard() {
         ) : (
           <div className="cards-grid">
             {connectedPatients.map((conn) => (
-              <div key={conn.id} className="patient-card" onClick={() => viewPatient(conn.patients)}>
-                <div className="patient-card__header">
+              <div key={conn.id} className="patient-card">
+                <div className="patient-card__header" onClick={() => viewPatient(conn.patients)}>
                   <div className="patient-card__avatar"><User size={20} /></div>
                   {conn.lastSeverity && (
                     <span
@@ -247,16 +411,63 @@ export default function DoctorDashboard() {
                     />
                   )}
                 </div>
-                <div className="patient-card__name">{conn.patients?.full_name || 'Unknown'}</div>
+                <div className="patient-card__name" onClick={() => viewPatient(conn.patients)}>
+                  {conn.patients?.full_name || 'Unknown'}
+                </div>
                 <div className="patient-card__meta">
                   {conn.patients?.location && <span><MapPin size={12} /> {conn.patients.location}</span>}
                   {conn.patients?.blood_group && <span><Droplets size={12} /> {conn.patients.blood_group}</span>}
+                </div>
+                <div className="patient-card__actions">
+                  <button
+                    className="btn btn--outline btn--sm btn--chat"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openChat(conn.id, conn.patients?.full_name || 'Patient');
+                    }}
+                  >
+                    <MessageCircle size={14} />
+                    Chat
+                    {unreadCounts[conn.id] > 0 && (
+                      <span className="unread-badge">{unreadCounts[conn.id]}</span>
+                    )}
+                  </button>
                 </div>
               </div>
             ))}
           </div>
         )}
       </main>
+
+      {/* Chat panel */}
+      {chatOpen && (
+        <ChatWindow
+          connectionId={chatOpen.connectionId}
+          currentUserId={user.id}
+          otherUserName={chatOpen.patientName}
+          onClose={closeChat}
+        />
+      )}
+
+      {/* Toast notifications */}
+      <ToastContainer toasts={toasts} onDismiss={(id) => setToasts((prev) => prev.filter((t) => t.id !== id))} />
+    </div>
+  );
+}
+
+/* ── Toast Container ── */
+function ToastContainer({ toasts, onDismiss }) {
+  if (toasts.length === 0) return null;
+  return (
+    <div className="toast-container">
+      {toasts.map((toast) => (
+        <div key={toast.id} className={`toast toast--${toast.type}`}>
+          <span className="toast__message">{toast.message}</span>
+          <button className="toast__close" onClick={() => onDismiss(toast.id)}>
+            <X size={14} />
+          </button>
+        </div>
+      ))}
     </div>
   );
 }
