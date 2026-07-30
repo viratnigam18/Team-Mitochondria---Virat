@@ -35,7 +35,11 @@ export default function PatientProfile() {
     setSaving(true);
     setError(null);
     setSuccess(false);
-    const { error: err } = await supabase.from('patients').update(form).eq('id', user.id);
+    const { error: err } = await supabase.from('patients').upsert({
+      id: user.id,
+      email: user.email,
+      ...form,
+    }, { onConflict: 'id' });
     if (err) {
       setError(err.message);
     } else {
@@ -79,6 +83,10 @@ export default function PatientProfile() {
               <div className="form-group">
                 <label className="form-label">Full Name</label>
                 <input className="form-input" name="full_name" value={form.full_name} onChange={handleChange} placeholder="Your full name" />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Email (Account)</label>
+                <input className="form-input" value={user?.email || ''} disabled style={{ opacity: 0.7, cursor: 'not-allowed' }} />
               </div>
               <div className="form-group">
                 <label className="form-label">Date of Birth</label>

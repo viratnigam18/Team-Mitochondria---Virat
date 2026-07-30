@@ -38,10 +38,12 @@ export default function DoctorProfile() {
     setSaving(true);
     setError(null);
     setSuccess(false);
-    const { error: err } = await supabase.from('doctors').update({
+    const { error: err } = await supabase.from('doctors').upsert({
+      id: user.id,
+      email: user.email,
       ...form,
       experience: form.experience ? parseInt(form.experience) : null,
-    }).eq('id', user.id);
+    }, { onConflict: 'id' });
     if (err) setError(err.message);
     else { setSuccess(true); setTimeout(() => setSuccess(false), 3000); await refreshProfile(); }
     setSaving(false);
@@ -82,6 +84,10 @@ export default function DoctorProfile() {
               <div className="form-group">
                 <label className="form-label">Full Name</label>
                 <input className="form-input" name="full_name" value={form.full_name} onChange={handleChange} placeholder="Dr. Full Name" />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Email (Account)</label>
+                <input className="form-input" value={user?.email || ''} disabled style={{ opacity: 0.7, cursor: 'not-allowed' }} />
               </div>
               <div className="form-group">
                 <label className="form-label">Date of Birth</label>

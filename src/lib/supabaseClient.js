@@ -16,14 +16,16 @@ if (supabaseUrl && supabaseAnonKey) {
 
   // Provide a stub so imports don't explode.
   // Every method call will warn instead of crashing.
-  const handler = {
-    get(_, prop) {
-      return (...args) => {
-        console.warn(`[Supabase stub] Called .${String(prop)}() but client is not configured.`);
-        // Return shapes that won't break typical Supabase call patterns
-        return Promise.resolve({ data: null, error: { message: 'Supabase not configured' } });
-      };
-    },
+  const createChainableStub = () => {
+    const fn = () => {};
+    fn.then = (onfulfilled, onrejected) =>
+      Promise.resolve({ data: [], error: { message: 'Supabase not configured' } }).then(onfulfilled, onrejected);
+    return new Proxy(fn, {
+      get(_, prop) {
+        if (prop === 'then') return fn.then;
+        return () => createChainableStub();
+      },
+    });
   };
 
   supabase = new Proxy(
@@ -42,9 +44,14 @@ if (supabaseUrl && supabaseAnonKey) {
           return () => Promise.resolve({ data: null, error: { message: 'Supabase not configured' } });
         },
       }),
-      from: () => new Proxy({}, handler),
+      from: () => createChainableStub(),
     },
-    handler
+    {
+      get(target, prop) {
+        if (prop in target) return target[prop];
+        return () => createChainableStub();
+      },
+    }
   );
 }
 

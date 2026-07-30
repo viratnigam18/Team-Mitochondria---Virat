@@ -123,7 +123,7 @@ export default function DoctorSignup() {
 
     // 4. Insert doctor profile with computed age
     if (data?.user) {
-      const { error: insertErr } = await supabase.from('doctors').insert({
+      const { error: insertErr } = await supabase.from('doctors').upsert({
         id: data.user.id,
         full_name: form.fullName,
         dob: form.dob,
@@ -137,7 +137,7 @@ export default function DoctorSignup() {
         speciality: form.speciality,
         experience: form.experience ? parseInt(form.experience) : null,
         clinic_name: form.clinicName,
-      });
+      }, { onConflict: 'id' });
       if (insertErr) {
         console.error('Doctor profile insert failed:', insertErr);
         setError('Account created but profile save failed: ' + insertErr.message);

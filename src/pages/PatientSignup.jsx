@@ -103,7 +103,7 @@ export default function PatientSignup() {
 
     // Insert patient profile with computed age
     if (data?.user) {
-      const { error: insertErr } = await supabase.from('patients').insert({
+      const { error: insertErr } = await supabase.from('patients').upsert({
         id: data.user.id,
         full_name: form.fullName,
         dob: form.dob,
@@ -115,7 +115,7 @@ export default function PatientSignup() {
         blood_group: form.bloodGroup,
         allergies: form.allergies,
         emergency_contact: form.emergencyContact,
-      });
+      }, { onConflict: 'id' });
       if (insertErr) {
         console.error('Patient profile insert failed:', insertErr);
         setError('Account created but profile save failed: ' + insertErr.message);

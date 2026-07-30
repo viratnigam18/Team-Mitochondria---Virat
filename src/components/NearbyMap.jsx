@@ -209,8 +209,9 @@ export default function NearbyMap({ onHospitalsFound }) {
       setLoading(false);
     });
 
+    const currentContainer = mapContainerRef.current;
     return () => {
-      if (resizeObserver && mapContainerRef.current) {
+      if (resizeObserver && currentContainer) {
         resizeObserver.disconnect();
       }
       if (mapRef.current) {
