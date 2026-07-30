@@ -197,27 +197,54 @@ export default function PatientDashboard() {
                 <Building2 size={16} /> Nearby Hospital Directory
               </div>
               {hospitals.length === 0 ? (
-                <p className="widget-empty">Allow location to see nearby hospitals</p>
+                <p className="widget-empty">Loading nearby hospital directory...</p>
               ) : (
                 <div className="hospital-list">
                   {hospitals.map((h) => (
                     <div key={h.id} className="hospital-item">
                       <div className="hospital-item__info">
-                        <div className="hospital-item__name">{h.name}</div>
-                        <div className="hospital-item__dist">
-                          <MapPin size={11} /> {h.dist} km away
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                          <span className="hospital-item__name">{h.name}</span>
+                          {h.tag && (
+                            <span
+                              style={{
+                                fontSize: '0.6rem',
+                                fontWeight: '700',
+                                padding: '0.1rem 0.4rem',
+                                borderRadius: '999px',
+                                background: 'rgba(20, 184, 166, 0.15)',
+                                color: '#0d9488',
+                              }}
+                            >
+                              {h.tag}
+                            </span>
+                          )}
                         </div>
+                        <div className="hospital-item__dist">
+                          <MapPin size={11} /> {h.subtitle || `${h.dist} km away`}
+                        </div>
+                        {h.rating && (
+                          <div style={{ fontSize: '0.68rem', color: '#d97706', fontWeight: '600' }}>
+                            ★ {h.rating} ({h.stars} reviews)
+                          </div>
+                        )}
+                        {h.desc && (
+                          <div style={{ fontSize: '0.7rem', color: '#475569', marginTop: '0.2rem', lineHeight: '1.3' }}>
+                            {h.desc}
+                          </div>
+                        )}
                         {h.phone && (
-                          <div className="hospital-item__phone">
+                          <div className="hospital-item__phone" style={{ marginTop: '0.2rem' }}>
                             <Phone size={11} /> {h.phone}
                           </div>
                         )}
                       </div>
                       <a
-                        href={h.phone ? `tel:${h.phone}` : `https://maps.google.com/?q=${h.lat},${h.lon}`}
+                        href={h.mapsUrl || (h.phone ? `tel:${h.phone}` : `https://maps.google.com/?q=${h.lat},${h.lon}`)}
                         target={h.phone ? '_self' : '_blank'}
                         rel="noopener noreferrer"
                         className="hospital-call-btn"
+                        title="View on Google Maps / Call"
                       >
                         <Phone size={14} />
                       </a>
