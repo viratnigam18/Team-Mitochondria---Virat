@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
 import { useAuth } from '../components/AuthProvider';
 import { supabase } from '../lib/supabaseClient';
-import ChatWindow from '../components/ChatWindow';
 import {
   MessageCircle, Search, UserPlus, Clock, CheckCircle2,
   XCircle, ChevronDown, ChevronUp, User, Stethoscope,
@@ -33,9 +32,8 @@ export default function PatientDashboard() {
   const [hospitals, setHospitals] = useState([]);
   const [lastCheckup, setLastCheckup] = useState(null);
 
-  // Chat state
-  const [chatOpen, setChatOpen] = useState(null); // { connectionId, doctorName }
-  const [unreadCounts, setUnreadCounts] = useState({}); // { connectionId: count }
+  // Unread badge counts
+  const [unreadCounts, setUnreadCounts] = useState({});
 
   // Toast state
   const [toasts, setToasts] = useState([]);
@@ -102,8 +100,6 @@ export default function PatientDashboard() {
         (payload) => {
           const msg = payload.new;
           if (msg.sender_id !== user.id) {
-            if (chatOpen?.connectionId === msg.connection_id) return;
-
             setUnreadCounts((prev) => ({
               ...prev,
               [msg.connection_id]: (prev[msg.connection_id] || 0) + 1,
@@ -116,7 +112,7 @@ export default function PatientDashboard() {
       .subscribe();
 
     return () => supabase.removeChannel(channel);
-  }, [user, chatOpen, addToast]);
+  }, [user, addToast]);
 
   const fetchUnreadCounts = async () => {
     if (!user) return;
@@ -205,23 +201,14 @@ export default function PatientDashboard() {
     );
   });
 
-  const sev = lastCheckup ? SEVERITY_CFG[lastCheckup.severity] : null;
-
-  const openChat = (connectionId, doctorName) => {
-    setChatOpen({ connectionId, doctorName });
-    setUnreadCounts((prev) => {
-      const next = { ...prev };
-      delete next[connectionId];
-      return next;
-    });
-  };
-
-  const closeChat = () => {
-    setChatOpen(null);
-    fetchUnreadCounts();
+  const openChat = (connectionId) => {
+    navigate(`/messages?connectionId=${connectionId}`);
   };
 
   const totalUnread = Object.values(unreadCounts).reduce((sum, c) => sum + c, 0);
+
+  // Derive severity display from last checkup
+  const sev = lastCheckup?.severity ? SEVERITY_CFG[lastCheckup.severity] : null;
 
   return (
     <div className="app-layout">
@@ -460,7 +447,7 @@ export default function PatientDashboard() {
                       status={conn.status}
                       connectionId={conn.id}
                       unreadCount={unreadCounts[conn.id] || 0}
-                      onChat={() => openChat(conn.id, conn.doctors?.full_name || 'Doctor')}
+                      onChat={() => openChat(conn.id)}
                     />
                   ))
                 )}
@@ -566,16 +553,6 @@ export default function PatientDashboard() {
           </div>
         </div>
       </main>
-
-      {/* Chat panel */}
-      {chatOpen && (
-        <ChatWindow
-          connectionId={chatOpen.connectionId}
-          currentUserId={user.id}
-          otherUserName={chatOpen.doctorName}
-          onClose={closeChat}
-        />
-      )}
 
       {/* Toast notifications */}
       <ToastContainer toasts={toasts} onDismiss={(id) => setToasts((prev) => prev.filter((t) => t.id !== id))} />

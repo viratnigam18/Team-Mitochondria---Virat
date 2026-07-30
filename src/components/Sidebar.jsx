@@ -67,12 +67,14 @@ export default function Sidebar() {
 
   const patientLinks = [
     { to: '/patient/dashboard', icon: <LayoutDashboard size={20} />, label: 'Dashboard' },
+    { to: '/messages', icon: <MessageCircle size={20} />, label: 'Messages', badge: totalUnread },
     { to: '/triage', icon: <MessageCircle size={20} />, label: 'Triage' },
     { to: '/patient/profile', icon: <User size={20} />, label: 'Profile' },
   ];
 
   const doctorLinks = [
     { to: '/doctor/dashboard', icon: <LayoutDashboard size={20} />, label: 'Dashboard' },
+    { to: '/messages', icon: <MessageCircle size={20} />, label: 'Messages', badge: totalUnread },
     { to: '/doctor/profile', icon: <User size={20} />, label: 'Profile' },
   ];
 
@@ -98,20 +100,9 @@ export default function Sidebar() {
           >
             {link.icon}
             <span>{link.label}</span>
+            {link.badge > 0 && <span className="sidebar__unread-badge">{link.badge}</span>}
           </Link>
         ))}
-
-        {/* Messages indicator — shows on dashboard link */}
-        {totalUnread > 0 && (
-          <Link
-            to={role === 'doctor' ? '/doctor/dashboard' : '/patient/dashboard'}
-            className="sidebar__link sidebar__link--messages"
-          >
-            <MessageCircle size={20} />
-            <span>Messages</span>
-            <span className="sidebar__unread-badge">{totalUnread}</span>
-          </Link>
-        )}
       </nav>
 
       {/* Bottom: role badge + logout */}

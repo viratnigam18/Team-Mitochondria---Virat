@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
 import { useAuth } from '../components/AuthProvider';
 import { supabase } from '../lib/supabaseClient';
-import ChatWindow from '../components/ChatWindow';
 import {
   Users, Clock, CheckCircle2, XCircle, ChevronDown, ChevronUp,
   User, MapPin, Droplets, AlertTriangle, Phone, ArrowLeft, Send,
@@ -16,6 +16,7 @@ const SEVERITY_CFG = {
 };
 
 export default function DoctorDashboard() {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [pendingRequests, setPendingRequests] = useState([]);
   const [connectedPatients, setConnectedPatients] = useState([]);
@@ -27,9 +28,8 @@ export default function DoctorDashboard() {
   const [savingNote, setSavingNote] = useState(null);
   const [updatingConn, setUpdatingConn] = useState(null);
 
-  // Chat state
-  const [chatOpen, setChatOpen] = useState(null); // { connectionId, patientName }
-  const [unreadCounts, setUnreadCounts] = useState({}); // { connectionId: count }
+  // Unread badge counts
+  const [unreadCounts, setUnreadCounts] = useState({});
 
   // Toast notifications
   const [toasts, setToasts] = useState([]);
@@ -107,9 +107,6 @@ export default function DoctorDashboard() {
           const msg = payload.new;
           // Only count messages from others
           if (msg.sender_id !== user.id) {
-            // If chat is open for this connection, don't increment
-            if (chatOpen?.connectionId === msg.connection_id) return;
-
             setUnreadCounts((prev) => ({
               ...prev,
               [msg.connection_id]: (prev[msg.connection_id] || 0) + 1,
@@ -122,7 +119,7 @@ export default function DoctorDashboard() {
       .subscribe();
 
     return () => supabase.removeChannel(channel);
-  }, [user, chatOpen, addToast]);
+  }, [user, addToast]);
 
   const fetchUnreadCounts = async () => {
     if (!user) return;
@@ -193,19 +190,8 @@ export default function DoctorDashboard() {
     setSavingNote(null);
   };
 
-  const openChat = (connectionId, patientName) => {
-    setChatOpen({ connectionId, patientName });
-    // Clear unread for this connection
-    setUnreadCounts((prev) => {
-      const next = { ...prev };
-      delete next[connectionId];
-      return next;
-    });
-  };
-
-  const closeChat = () => {
-    setChatOpen(null);
-    fetchUnreadCounts();
+  const openChat = (connectionId) => {
+    navigate(`/messages?connectionId=${connectionId}`);
   };
 
   if (loading) {
@@ -235,7 +221,7 @@ export default function DoctorDashboard() {
             {patientConn && (
               <button
                 className="btn btn--primary"
-                onClick={() => openChat(patientConn.id, selectedPatient.full_name)}
+                onClick={() => openChat(patientConn.id)}
               >
                 <MessageCircle size={18} /> Chat with {selectedPatient.full_name?.split(' ')[0]}
               </button>
@@ -320,16 +306,6 @@ export default function DoctorDashboard() {
           </div>
         </main>
 
-        {/* Chat panel */}
-        {chatOpen && (
-          <ChatWindow
-            connectionId={chatOpen.connectionId}
-            currentUserId={user.id}
-            otherUserName={chatOpen.patientName}
-            onClose={closeChat}
-          />
-        )}
-
         {/* Toast notifications */}
         <ToastContainer toasts={toasts} onDismiss={(id) => setToasts((prev) => prev.filter((t) => t.id !== id))} />
       </div>
@@ -348,12 +324,17 @@ export default function DoctorDashboard() {
             <h1 className="page-title">Doctor Dashboard</h1>
             <p className="page-subtitle">Manage your patients and connections</p>
           </div>
-          {totalUnread > 0 && (
-            <div className="unread-summary">
-              <MessageCircle size={18} />
-              <span>{totalUnread} unread message{totalUnread !== 1 ? 's' : ''}</span>
-            </div>
-          )}
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+            {totalUnread > 0 && (
+              <div className="unread-summary">
+                <MessageCircle size={18} />
+                <span>{totalUnread} unread message{totalUnread !== 1 ? 's' : ''}</span>
+              </div>
+            )}
+            <button className="btn btn--primary" onClick={() => navigate('/messages')}>
+              <MessageCircle size={18} /> Messages
+            </button>
+          </div>
         </div>
 
         <div className="stats-row">
@@ -432,7 +413,7 @@ export default function DoctorDashboard() {
                     className="btn btn--outline btn--sm btn--chat"
                     onClick={(e) => {
                       e.stopPropagation();
-                      openChat(conn.id, conn.patients?.full_name || 'Patient');
+                      openChat(conn.id);
                     }}
                   >
                     <MessageCircle size={14} />
@@ -447,16 +428,6 @@ export default function DoctorDashboard() {
           </div>
         )}
       </main>
-
-      {/* Chat panel */}
-      {chatOpen && (
-        <ChatWindow
-          connectionId={chatOpen.connectionId}
-          currentUserId={user.id}
-          otherUserName={chatOpen.patientName}
-          onClose={closeChat}
-        />
-      )}
 
       {/* Toast notifications */}
       <ToastContainer toasts={toasts} onDismiss={(id) => setToasts((prev) => prev.filter((t) => t.id !== id))} />

@@ -5,10 +5,11 @@ import DoctorSignup from './pages/DoctorSignup.jsx';
 import PatientLogin from './pages/PatientLogin.jsx';
 import PatientSignup from './pages/PatientSignup.jsx';
 import DoctorDashboard from './pages/DoctorDashboard.jsx';
+import DoctorProfile from './pages/DoctorProfile.jsx';
 import PatientDashboard from './pages/PatientDashboard.jsx';
 import TriageChat from './pages/TriageChat.jsx';
 import PatientProfile from './pages/PatientProfile.jsx';
-import DoctorProfile from './pages/DoctorProfile.jsx';
+import Messages from './pages/Messages.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
 
 export default function App() {
@@ -28,6 +29,9 @@ export default function App() {
       {/* Patient routes */}
       <Route path="/patient/dashboard" element={<ProtectedRoute requiredRole="patient"><PatientDashboard /></ProtectedRoute>} />
       <Route path="/patient/profile" element={<ProtectedRoute requiredRole="patient"><PatientProfile /></ProtectedRoute>} />
+
+      {/* Shared messaging route */}
+      <Route path="/messages" element={<ProtectedRoute><Messages /></ProtectedRoute>} />
 
       {/* Triage — patients only */}
       <Route path="/triage" element={<ProtectedRoute requiredRole="patient"><TriageChat /></ProtectedRoute>} />

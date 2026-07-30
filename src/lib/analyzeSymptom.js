@@ -128,6 +128,19 @@ Analyze these symptoms and respond with the JSON format specified.`;
     };
   }
 
+  // Sanitize severity — AI may return "Green", "Medium ", "RED" etc.
+  // DB CHECK constraint requires exactly: 'green', 'medium', 'red'
+  const VALID_SEVERITIES = ['green', 'medium', 'red'];
+  if (parsed.severity) {
+    parsed.severity = parsed.severity.toLowerCase().trim();
+    if (!VALID_SEVERITIES.includes(parsed.severity)) {
+      console.warn(`Invalid severity "${parsed.severity}", defaulting to "medium"`);
+      parsed.severity = 'medium';
+    }
+  } else {
+    parsed.severity = 'medium';
+  }
+
   // If AI needs more info, return follow-up question without saving
   if (parsed.follow_up_question) {
     return { ...parsed, saved: false };
