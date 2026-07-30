@@ -1,0 +1,991 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Doctor ji — Sahi Salah, Sehat Ka Saath | Smart Rural Healthcare Triage</title>
+  <meta name="description" content="Doctor ji is a smart rural healthcare triage platform that helps healthcare workers recognise critical patients early, monitor vital signs and make faster referral decisions." />
+  <meta name="theme-color" content="#071A2D" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+</head>
+<body>
+
+  <!-- ═══════════════════════════════════════════════════ -->
+  <!-- LOADING SCREEN                                      -->
+  <!-- ═══════════════════════════════════════════════════ -->
+  <div id="loader" class="loader">
+    <canvas id="loader-canvas" class="loader__canvas"></canvas>
+    <div class="loader__content">
+      <div class="loader__logo" id="loader-logo">
+        <span class="loader__logo-icon">
+          <svg viewBox="0 0 64 64" class="loader__heart-svg">
+            <path d="M32 58C32 58 8 40 8 24C8 14 16 8 24 8C28 8 31 10 32 13C33 10 36 8 40 8C48 8 56 14 56 24C56 40 32 58 32 58Z" fill="url(#heartGrad)"/>
+            <defs><linearGradient id="heartGrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#22D3EE"/><stop offset="100%" stop-color="#2563EB"/></linearGradient></defs>
+          </svg>
+        </span>
+        <span class="loader__logo-text">Doctor ji</span>
+      </div>
+      <p class="loader__tagline">Sahi Salah, Sehat Ka Saath</p>
+      <div class="loader__progress">
+        <div class="loader__progress-bar" id="loader-bar"></div>
+      </div>
+      <span class="loader__percent" id="loader-percent">0%</span>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════ -->
+  <!-- CUSTOM CURSOR                                       -->
+  <!-- ═══════════════════════════════════════════════════ -->
+  <div id="cursor-dot" class="cursor-dot"></div>
+  <div id="cursor-glow" class="cursor-glow"></div>
+
+  <!-- ═══════════════════════════════════════════════════ -->
+  <!-- PARTICLE CANVAS                                     -->
+  <!-- ═══════════════════════════════════════════════════ -->
+  <canvas id="particles-canvas" class="particles-canvas"></canvas>
+
+  <!-- ═══════════════════════════════════════════════════ -->
+  <!-- NAVIGATION                                          -->
+  <!-- ═══════════════════════════════════════════════════ -->
+  <nav id="navbar" class="navbar">
+    <div class="navbar__inner">
+      <a href="#hero" class="navbar__logo" id="nav-logo">
+        <svg viewBox="0 0 64 64" class="navbar__logo-icon">
+          <path d="M32 58C32 58 8 40 8 24C8 14 16 8 24 8C28 8 31 10 32 13C33 10 36 8 40 8C48 8 56 14 56 24C56 40 32 58 32 58Z" fill="url(#navHeartGrad)"/>
+          <path d="M22 28L27 28L29 22L32 34L35 26L37 28L42 28" stroke="#F8FAFC" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+          <defs><linearGradient id="navHeartGrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#22D3EE"/><stop offset="100%" stop-color="#2563EB"/></linearGradient></defs>
+        </svg>
+        <span>Doctor ji</span>
+      </a>
+      <div class="navbar__links" id="nav-links">
+        <a href="#hero" class="navbar__link active" data-section="hero">Home</a>
+        <a href="#intro" class="navbar__link" data-section="intro">About</a>
+        <a href="#how-it-works" class="navbar__link" data-section="how-it-works">How It Works</a>
+        <a href="#triage" class="navbar__link" data-section="triage">Triage</a>
+        <a href="#live-vitals" class="navbar__link" data-section="live-vitals">Patients</a>
+        <a href="#referral" class="navbar__link" data-section="referral">Referrals</a>
+        <a href="#footer" class="navbar__link" data-section="footer">Contact</a>
+        <div class="navbar__underline" id="nav-underline"></div>
+      </div>
+      <div class="navbar__actions">
+        <a href="#" class="navbar__login">Login</a>
+        <a href="#triage" class="btn btn--primary btn--nav magnetic-btn" id="nav-cta">Start Triage</a>
+      </div>
+      <button class="navbar__hamburger" id="nav-hamburger" aria-label="Toggle menu">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- ═══════════════════════════════════════════════════ -->
+  <!-- MAIN CONTENT WRAPPER                                -->
+  <!-- ═══════════════════════════════════════════════════ -->
+  <main id="main-content" class="main-content">
+
+    <!-- HERO SECTION -->
+    <section id="hero" class="section section--hero">
+      <div class="hero__bg">
+        <div class="hero__gradient-orb hero__gradient-orb--1"></div>
+        <div class="hero__gradient-orb hero__gradient-orb--2"></div>
+        <div class="hero__gradient-orb hero__gradient-orb--3"></div>
+        <canvas id="hero-ecg-canvas" class="hero__ecg-canvas"></canvas>
+      </div>
+      <div class="hero__container">
+        <div class="hero__content">
+          <span class="hero__label" id="hero-label">
+            <span class="hero__label-dot"></span>
+            SMART RURAL HEALTH TRIAGE
+          </span>
+          <h1 class="hero__heading" id="hero-heading">
+            <span class="hero__heading-line"><span class="hero__heading-word">Right Patient.</span></span>
+            <span class="hero__heading-line"><span class="hero__heading-word">Right Priority.</span></span>
+            <span class="hero__heading-line"><span class="hero__heading-word">Right Time.</span></span>
+          </h1>
+          <p class="hero__description" id="hero-desc">
+            Doctor ji helps rural healthcare workers detect warning signs, prioritise patients and coordinate timely hospital referrals.
+          </p>
+          <div class="hero__buttons">
+            <a href="#triage" class="btn btn--primary btn--lg magnetic-btn" id="hero-btn-1">
+              <span class="btn__text">Start Triage</span>
+              <span class="btn__glow"></span>
+            </a>
+            <a href="#how-it-works" class="btn btn--outline btn--lg magnetic-btn" id="hero-btn-2">
+              <span class="btn__text">Explore Platform</span>
+            </a>
+          </div>
+        </div>
+        <div class="hero__visual" id="hero-visual">
+          <!-- Floating 3D Healthcare Objects -->
+          <div class="hero__scene" id="hero-scene">
+            <div class="hero__object hero__object--heart" data-depth="0.8" data-float-speed="3">
+              <svg viewBox="0 0 80 80" class="hero__obj-svg heartbeat-icon">
+                <path d="M40 70C40 70 10 48 10 28C10 16 20 8 28 8C34 8 38 12 40 16C42 12 46 8 52 8C60 8 70 16 70 28C70 48 40 70 40 70Z" fill="#EF4444" opacity="0.9"/>
+                <path d="M24 36L32 36L35 26L40 46L45 32L48 36L56 36" stroke="#fff" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+              </svg>
+            </div>
+            <div class="hero__object hero__object--stethoscope" data-depth="0.6" data-float-speed="4">
+              <svg viewBox="0 0 80 80" class="hero__obj-svg">
+                <circle cx="40" cy="58" r="14" fill="none" stroke="#22D3EE" stroke-width="3"/>
+                <circle cx="40" cy="58" r="5" fill="#22D3EE"/>
+                <path d="M26 58C26 42 26 20 34 20" stroke="#22D3EE" stroke-width="3" fill="none" stroke-linecap="round"/>
+                <path d="M54 58C54 42 54 20 46 20" stroke="#22D3EE" stroke-width="3" fill="none" stroke-linecap="round"/>
+                <circle cx="34" cy="16" r="4" fill="#22D3EE"/>
+                <circle cx="46" cy="16" r="4" fill="#22D3EE"/>
+              </svg>
+            </div>
+            <div class="hero__object hero__object--bp" data-depth="0.5" data-float-speed="5">
+              <div class="hero__glass-card">
+                <svg viewBox="0 0 40 40" class="hero__card-icon">
+                  <rect x="8" y="6" width="24" height="28" rx="4" fill="none" stroke="#10B981" stroke-width="2"/>
+                  <text x="20" y="24" text-anchor="middle" fill="#10B981" font-size="8" font-weight="700">BP</text>
+                  <path d="M12 14L16 14L18 10L20 18L22 12L24 14L28 14" stroke="#10B981" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+                </svg>
+                <span class="hero__card-value">120/80</span>
+                <span class="hero__card-label">Blood Pressure</span>
+              </div>
+            </div>
+            <div class="hero__object hero__object--o2" data-depth="0.7" data-float-speed="3.5">
+              <div class="hero__glass-card">
+                <svg viewBox="0 0 40 40" class="hero__card-icon">
+                  <circle cx="20" cy="20" r="14" fill="none" stroke="#2563EB" stroke-width="2"/>
+                  <text x="20" y="18" text-anchor="middle" fill="#2563EB" font-size="6" font-weight="700">SpO₂</text>
+                  <text x="20" y="28" text-anchor="middle" fill="#2563EB" font-size="10" font-weight="700">98%</text>
+                </svg>
+                <span class="hero__card-value">98%</span>
+                <span class="hero__card-label">Oxygen Level</span>
+              </div>
+            </div>
+            <div class="hero__object hero__object--ambulance" data-depth="0.3" data-float-speed="6">
+              <svg viewBox="0 0 100 50" class="hero__obj-svg">
+                <rect x="5" y="10" width="55" height="30" rx="4" fill="#F97316" opacity="0.9"/>
+                <rect x="55" y="18" width="35" height="22" rx="4" fill="#FB923C"/>
+                <circle cx="25" cy="42" r="6" fill="#0B2447" stroke="#F97316" stroke-width="2"/>
+                <circle cx="75" cy="42" r="6" fill="#0B2447" stroke="#F97316" stroke-width="2"/>
+                <path d="M25 18V28M20 23H30" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
+                <rect x="62" y="22" width="8" height="8" rx="1" fill="#FBBF24" opacity="0.7"/>
+                <rect x="74" y="22" width="8" height="8" rx="1" fill="#FBBF24" opacity="0.7"/>
+              </svg>
+            </div>
+            <div class="hero__object hero__object--medkit" data-depth="0.4" data-float-speed="4.5">
+              <svg viewBox="0 0 60 60" class="hero__obj-svg">
+                <rect x="8" y="18" width="44" height="32" rx="6" fill="#EF4444" opacity="0.85"/>
+                <rect x="20" y="12" width="20" height="10" rx="3" fill="none" stroke="#EF4444" stroke-width="2.5"/>
+                <path d="M30 26V40M23 33H37" stroke="#fff" stroke-width="3.5" stroke-linecap="round"/>
+              </svg>
+            </div>
+            <div class="hero__object hero__object--pin" data-depth="0.35" data-float-speed="5.5">
+              <svg viewBox="0 0 40 56" class="hero__obj-svg">
+                <path d="M20 54C20 54 4 32 4 18C4 9 11 2 20 2C29 2 36 9 36 18C36 32 20 54 20 54Z" fill="#2563EB" opacity="0.9"/>
+                <circle cx="20" cy="18" r="7" fill="#fff"/>
+                <path d="M17 16V20M20 16V20M23 16V20" stroke="#2563EB" stroke-width="1.5" stroke-linecap="round"/>
+              </svg>
+            </div>
+            <div class="hero__object hero__object--file" data-depth="0.55" data-float-speed="4.2">
+              <div class="hero__glass-card hero__glass-card--wide">
+                <div class="hero__file-lines">
+                  <div class="hero__file-line" style="width:80%"></div>
+                  <div class="hero__file-line" style="width:60%"></div>
+                  <div class="hero__file-line" style="width:90%"></div>
+                  <div class="hero__file-line hero__file-line--highlight" style="width:50%"></div>
+                </div>
+                <span class="hero__card-label">Patient Record</span>
+              </div>
+            </div>
+            <div class="hero__object hero__object--dashboard" data-depth="0.45" data-float-speed="5">
+              <div class="hero__glass-card hero__glass-card--dashboard">
+                <div class="hero__dash-header">
+                  <span class="hero__dash-dot hero__dash-dot--red"></span>
+                  <span class="hero__dash-dot hero__dash-dot--yellow"></span>
+                  <span class="hero__dash-dot hero__dash-dot--green"></span>
+                </div>
+                <div class="hero__dash-bars">
+                  <div class="hero__dash-bar" style="height:60%"></div>
+                  <div class="hero__dash-bar hero__dash-bar--accent" style="height:85%"></div>
+                  <div class="hero__dash-bar" style="height:40%"></div>
+                  <div class="hero__dash-bar hero__dash-bar--warn" style="height:95%"></div>
+                  <div class="hero__dash-bar" style="height:55%"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="hero__scroll-indicator" id="scroll-indicator">
+        <span>Scroll to Explore</span>
+        <div class="hero__scroll-line"></div>
+      </div>
+    </section>
+
+    <!-- INTRO SECTION -->
+    <section id="intro" class="section section--intro">
+      <div class="intro__container">
+        <p class="intro__text" id="intro-text">
+          <span class="intro__word">Healthcare</span>
+          <span class="intro__word">should</span>
+          <span class="intro__word">not</span>
+          <span class="intro__word">depend</span>
+          <span class="intro__word">on</span>
+          <span class="intro__word">how</span>
+          <span class="intro__word">early</span>
+          <span class="intro__word">a</span>
+          <span class="intro__word">patient</span>
+          <span class="intro__word">joins</span>
+          <span class="intro__word">a</span>
+          <span class="intro__word">queue.</span>
+        </p>
+        <p class="intro__text intro__text--second" id="intro-text-2">
+          <span class="intro__word">It</span>
+          <span class="intro__word">should</span>
+          <span class="intro__word">depend</span>
+          <span class="intro__word">on</span>
+          <span class="intro__word">who</span>
+          <span class="intro__word intro__word--highlight intro__word--hl-cyan">needs</span>
+          <span class="intro__word intro__word--highlight intro__word--hl-cyan">help</span>
+          <span class="intro__word intro__word--highlight intro__word--hl-cyan">first.</span>
+        </p>
+        <div class="intro__keywords">
+          <span class="intro__keyword" data-color="cyan">Early Warning</span>
+          <span class="intro__keyword" data-color="green">Timely Referral</span>
+          <span class="intro__keyword" data-color="orange">Right Priority</span>
+        </div>
+      </div>
+      <div class="intro__queue" id="intro-queue">
+        <div class="intro__patient intro__patient--critical" data-urgency="1">
+          <span class="intro__patient-icon">🔴</span>
+          <span class="intro__patient-label">Critical</span>
+        </div>
+        <div class="intro__patient intro__patient--review" data-urgency="2">
+          <span class="intro__patient-icon">🟠</span>
+          <span class="intro__patient-label">Review</span>
+        </div>
+        <div class="intro__patient intro__patient--stable" data-urgency="3">
+          <span class="intro__patient-icon">🟢</span>
+          <span class="intro__patient-label">Stable</span>
+        </div>
+        <div class="intro__patient intro__patient--stable2" data-urgency="4">
+          <span class="intro__patient-icon">🟢</span>
+          <span class="intro__patient-label">Stable</span>
+        </div>
+        <div class="intro__patient intro__patient--warning" data-urgency="2">
+          <span class="intro__patient-icon">🟡</span>
+          <span class="intro__patient-label">Warning</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- PROBLEM SECTION -->
+    <section id="problem" class="section section--problem">
+      <div class="problem__container">
+        <span class="section__label">THE CHALLENGE</span>
+        <h2 class="section__title problem__title">The Rural Healthcare Challenge</h2>
+        <div class="problem__stats" id="problem-stats">
+          <div class="problem__stat">
+            <span class="problem__stat-number" data-target="1">0</span>
+            <span class="problem__stat-label">Doctor</span>
+          </div>
+          <div class="problem__stat">
+            <span class="problem__stat-number" data-target="500" data-suffix="+">0</span>
+            <span class="problem__stat-label">Patients Daily</span>
+          </div>
+          <div class="problem__stat">
+            <span class="problem__stat-number" data-target="3" data-suffix="hr">0</span>
+            <span class="problem__stat-label">Avg Wait Time</span>
+          </div>
+          <div class="problem__stat">
+            <span class="problem__stat-number" data-target="42" data-suffix="%">0</span>
+            <span class="problem__stat-label">Delayed Referrals</span>
+          </div>
+        </div>
+        <div class="problem__stories" id="problem-stories">
+          <div class="problem__card glass-card" data-story="bp">
+            <div class="problem__card-icon">
+              <svg viewBox="0 0 48 48"><path d="M8 36L16 28L20 32L28 16L32 24L40 12" stroke="#EF4444" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <h3 class="problem__card-title">Rising Blood Pressure</h3>
+            <p class="problem__card-desc">A pregnant patient's blood pressure increases across several visits.</p>
+            <div class="problem__card-graph" data-type="bp">
+              <canvas class="problem__mini-graph"></canvas>
+            </div>
+            <span class="problem__card-warning">⚠ Preeclampsia Risk</span>
+          </div>
+          <div class="problem__card glass-card" data-story="o2">
+            <div class="problem__card-icon">
+              <svg viewBox="0 0 48 48"><path d="M8 16L16 24L20 20L28 36L32 28L40 40" stroke="#F97316" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <h3 class="problem__card-title">Falling Oxygen</h3>
+            <p class="problem__card-desc">An elderly patient's oxygen saturation gradually decreases.</p>
+            <div class="problem__card-graph" data-type="o2">
+              <canvas class="problem__mini-graph"></canvas>
+            </div>
+            <span class="problem__card-warning">⚠ Respiratory Decline</span>
+          </div>
+          <div class="problem__card glass-card" data-story="sugar">
+            <div class="problem__card-icon">
+              <svg viewBox="0 0 48 48"><path d="M8 34L14 30L20 32L26 22L32 18L38 10" stroke="#FBBF24" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <h3 class="problem__card-title">Increasing Blood Sugar</h3>
+            <p class="problem__card-desc">A diabetic patient's sugar readings continue to rise.</p>
+            <div class="problem__card-graph" data-type="sugar">
+              <canvas class="problem__mini-graph"></canvas>
+            </div>
+            <span class="problem__card-warning">⚠ Diabetic Emergency</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- HOW IT WORKS SECTION -->
+    <section id="how-it-works" class="section section--how">
+      <div class="how__container">
+        <span class="section__label">THE PROCESS</span>
+        <h2 class="section__title">How Doctor ji Works</h2>
+        <div class="how__journey" id="how-journey">
+          <svg class="how__line-svg" id="how-line-svg" viewBox="0 0 1200 200" preserveAspectRatio="none">
+            <path id="how-line-path" d="M0,100 C200,100 200,40 400,40 C600,40 600,160 800,160 C1000,160 1000,100 1200,100" stroke="url(#lineGrad)" stroke-width="3" fill="none" stroke-dasharray="2000" stroke-dashoffset="2000"/>
+            <defs><linearGradient id="lineGrad" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#22D3EE"/><stop offset="50%" stop-color="#2563EB"/><stop offset="100%" stop-color="#10B981"/></linearGradient></defs>
+          </svg>
+          <div class="how__steps">
+            <div class="how__step glass-card" data-step="1">
+              <div class="how__step-icon">
+                <svg viewBox="0 0 48 48"><circle cx="24" cy="16" r="8" fill="none" stroke="#22D3EE" stroke-width="2"/><path d="M12 40C12 32 17 28 24 28C31 28 36 32 36 40" stroke="#22D3EE" stroke-width="2" fill="none" stroke-linecap="round"/><path d="M28 16H36M32 12V20" stroke="#22D3EE" stroke-width="2" stroke-linecap="round"/></svg>
+              </div>
+              <span class="how__step-num">01</span>
+              <h3 class="how__step-title">Patient Registration</h3>
+              <p class="how__step-desc">Quick digital registration with basic demographics and visit reason</p>
+            </div>
+            <div class="how__step glass-card" data-step="2">
+              <div class="how__step-icon">
+                <svg viewBox="0 0 48 48"><rect x="10" y="6" width="28" height="36" rx="4" fill="none" stroke="#2563EB" stroke-width="2"/><path d="M16 16H32M16 22H28M16 28H24" stroke="#2563EB" stroke-width="2" stroke-linecap="round"/><circle cx="32" cy="32" r="4" fill="#2563EB"/></svg>
+              </div>
+              <span class="how__step-num">02</span>
+              <h3 class="how__step-title">Symptoms & Vitals</h3>
+              <p class="how__step-desc">Record symptoms, measure vital signs and note current complaints</p>
+            </div>
+            <div class="how__step glass-card" data-step="3">
+              <div class="how__step-icon">
+                <svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="16" fill="none" stroke="#10B981" stroke-width="2"/><path d="M16 24L22 30L34 18" stroke="#10B981" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </div>
+              <span class="how__step-num">03</span>
+              <h3 class="how__step-title">Health Risk Analysis</h3>
+              <p class="how__step-desc">Automated assessment of health trends and warning indicators</p>
+            </div>
+            <div class="how__step glass-card" data-step="4">
+              <div class="how__step-icon">
+                <svg viewBox="0 0 48 48"><path d="M24 4L30 16H42L32 24L36 38L24 30L12 38L16 24L6 16H18Z" fill="none" stroke="#F97316" stroke-width="2" stroke-linejoin="round"/></svg>
+              </div>
+              <span class="how__step-num">04</span>
+              <h3 class="how__step-title">Priority Assignment</h3>
+              <p class="how__step-desc">Patients receive a priority score based on clinical urgency</p>
+            </div>
+            <div class="how__step glass-card" data-step="5">
+              <div class="how__step-icon">
+                <svg viewBox="0 0 48 48"><circle cx="24" cy="14" r="8" fill="none" stroke="#22D3EE" stroke-width="2"/><path d="M8 42C8 32 15 26 24 26C33 26 40 32 40 42" stroke="#22D3EE" stroke-width="2" fill="none"/><path d="M32 36L36 40L44 32" stroke="#10B981" stroke-width="2.5" fill="none" stroke-linecap="round"/></svg>
+              </div>
+              <span class="how__step-num">05</span>
+              <h3 class="how__step-title">Doctor Review</h3>
+              <p class="how__step-desc">Healthcare professional reviews prioritised patient list</p>
+            </div>
+            <div class="how__step glass-card" data-step="6">
+              <div class="how__step-icon">
+                <svg viewBox="0 0 48 48"><rect x="4" y="16" width="26" height="18" rx="3" fill="none" stroke="#EF4444" stroke-width="2"/><rect x="28" y="20" width="16" height="14" rx="3" fill="none" stroke="#EF4444" stroke-width="2"/><circle cx="14" cy="36" r="4" fill="none" stroke="#EF4444" stroke-width="2"/><circle cx="38" cy="36" r="4" fill="none" stroke="#EF4444" stroke-width="2"/><path d="M14 22V30M10 26H18" stroke="#EF4444" stroke-width="2" stroke-linecap="round"/></svg>
+              </div>
+              <span class="how__step-num">06</span>
+              <h3 class="how__step-title">Hospital Referral</h3>
+              <p class="how__step-desc">Critical patients are referred with complete records and ambulance coordination</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TRIAGE SHOWCASE SECTION -->
+    <section id="triage" class="section section--triage">
+      <div class="triage__container">
+        <span class="section__label">LIVE TRIAGE</span>
+        <h2 class="section__title">See Urgency Before It Becomes an Emergency</h2>
+        <div class="triage__cards" id="triage-cards">
+          <!-- Critical -->
+          <div class="triage__card triage__card--critical glass-card" data-priority="critical" data-depth="0.6">
+            <div class="triage__card-status">
+              <span class="triage__status-icon triage__status-icon--critical" aria-label="Critical priority">
+                <svg viewBox="0 0 24 24"><path d="M12 2L2 22H22L12 2Z" fill="#EF4444"/><text x="12" y="18" text-anchor="middle" fill="#fff" font-size="10" font-weight="700">!</text></svg>
+              </span>
+              <span class="triage__status-text triage__status-text--critical">CRITICAL — Immediate Review</span>
+            </div>
+            <div class="triage__card-patient">
+              <h3 class="triage__patient-name">Meena Devi, 32</h3>
+              <canvas class="triage__ecg-line" data-color="#EF4444"></canvas>
+            </div>
+            <div class="triage__vitals-grid">
+              <div class="triage__vital">
+                <span class="triage__vital-label">SpO₂</span>
+                <span class="triage__vital-value triage__vital-value--danger" data-target="89">0</span>
+                <span class="triage__vital-unit">%</span>
+              </div>
+              <div class="triage__vital">
+                <span class="triage__vital-label">BP</span>
+                <span class="triage__vital-value triage__vital-value--danger">158/102</span>
+              </div>
+              <div class="triage__vital">
+                <span class="triage__vital-label">Risk Score</span>
+                <span class="triage__vital-value triage__vital-value--danger" data-target="88">0</span>
+              </div>
+              <div class="triage__vital">
+                <span class="triage__vital-label">Waiting</span>
+                <span class="triage__vital-value">12 min</span>
+              </div>
+            </div>
+            <p class="triage__card-note">Symptoms worsening · Requires immediate attention</p>
+          </div>
+          <!-- Review -->
+          <div class="triage__card triage__card--review glass-card" data-priority="review" data-depth="0.4">
+            <div class="triage__card-status">
+              <span class="triage__status-icon triage__status-icon--review" aria-label="Review required">
+                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#F97316"/><path d="M12 7V13L16 15" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
+              </span>
+              <span class="triage__status-text triage__status-text--review">REVIEW REQUIRED</span>
+            </div>
+            <div class="triage__card-patient">
+              <h3 class="triage__patient-name">Ramesh Patel, 61</h3>
+              <canvas class="triage__ecg-line" data-color="#F97316"></canvas>
+            </div>
+            <div class="triage__vitals-grid">
+              <div class="triage__vital">
+                <span class="triage__vital-label">SpO₂</span>
+                <span class="triage__vital-value triage__vital-value--warning" data-target="94">0</span>
+                <span class="triage__vital-unit">%</span>
+              </div>
+              <div class="triage__vital">
+                <span class="triage__vital-label">BP</span>
+                <span class="triage__vital-value triage__vital-value--warning">145/92</span>
+              </div>
+              <div class="triage__vital">
+                <span class="triage__vital-label">Risk Score</span>
+                <span class="triage__vital-value triage__vital-value--warning" data-target="63">0</span>
+              </div>
+            </div>
+          </div>
+          <!-- Stable -->
+          <div class="triage__card triage__card--stable glass-card" data-priority="stable" data-depth="0.2">
+            <div class="triage__card-status">
+              <span class="triage__status-icon triage__status-icon--stable" aria-label="Stable patient">
+                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#10B981"/><path d="M8 12L11 15L16 9" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </span>
+              <span class="triage__status-text triage__status-text--stable">STABLE — Continue Monitoring</span>
+            </div>
+            <div class="triage__card-patient">
+              <h3 class="triage__patient-name">Anita Sharma, 40</h3>
+              <canvas class="triage__ecg-line" data-color="#10B981"></canvas>
+            </div>
+            <div class="triage__vitals-grid">
+              <div class="triage__vital">
+                <span class="triage__vital-label">SpO₂</span>
+                <span class="triage__vital-value triage__vital-value--good" data-target="98">0</span>
+                <span class="triage__vital-unit">%</span>
+              </div>
+              <div class="triage__vital">
+                <span class="triage__vital-label">BP</span>
+                <span class="triage__vital-value triage__vital-value--good">122/80</span>
+              </div>
+              <div class="triage__vital">
+                <span class="triage__vital-label">Risk Score</span>
+                <span class="triage__vital-value triage__vital-value--good" data-target="24">0</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- RISK SCORE SECTION -->
+    <section id="risk-score" class="section section--risk">
+      <div class="risk__container">
+        <span class="section__label">RISK ASSESSMENT</span>
+        <h2 class="section__title">Understanding Patient Priority</h2>
+        <div class="risk__display" id="risk-display">
+          <div class="risk__meter" id="risk-meter">
+            <svg viewBox="0 0 300 300" class="risk__meter-svg">
+              <!-- Outer decorative ring -->
+              <circle cx="150" cy="150" r="140" fill="none" stroke="rgba(34,211,238,0.1)" stroke-width="1" class="risk__ring risk__ring--outer"/>
+              <!-- Middle ring -->
+              <circle cx="150" cy="150" r="125" fill="none" stroke="rgba(37,99,235,0.15)" stroke-width="2" stroke-dasharray="4 8" class="risk__ring risk__ring--mid"/>
+              <!-- Progress track -->
+              <circle cx="150" cy="150" r="108" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="12" stroke-linecap="round" transform="rotate(-90 150 150)"/>
+              <!-- Progress arc -->
+              <circle cx="150" cy="150" r="108" fill="none" stroke="url(#riskGrad)" stroke-width="12" stroke-linecap="round" stroke-dasharray="679" stroke-dashoffset="679" transform="rotate(-90 150 150)" class="risk__arc" id="risk-arc"/>
+              <!-- Inner glow ring -->
+              <circle cx="150" cy="150" r="90" fill="none" stroke="rgba(239,68,68,0.2)" stroke-width="1" class="risk__ring risk__ring--inner"/>
+              <defs>
+                <linearGradient id="riskGrad" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0%" stop-color="#F97316"/>
+                  <stop offset="50%" stop-color="#EF4444"/>
+                  <stop offset="100%" stop-color="#DC2626"/>
+                </linearGradient>
+              </defs>
+            </svg>
+            <div class="risk__meter-center">
+              <span class="risk__score" id="risk-score-num">0</span>
+              <span class="risk__score-label">Critical Priority</span>
+            </div>
+            <div class="risk__particles" id="risk-particles"></div>
+          </div>
+          <div class="risk__factors" id="risk-factors">
+            <h3 class="risk__factors-title">Why this patient requires attention</h3>
+            <div class="risk__factor-list">
+              <div class="risk__factor glass-card" data-delay="0">
+                <span class="risk__factor-icon">📉</span>
+                <span class="risk__factor-text">Oxygen level is decreasing</span>
+              </div>
+              <div class="risk__factor glass-card" data-delay="1">
+                <span class="risk__factor-icon">📈</span>
+                <span class="risk__factor-text">Blood pressure is increasing</span>
+              </div>
+              <div class="risk__factor glass-card" data-delay="2">
+                <span class="risk__factor-icon">🩺</span>
+                <span class="risk__factor-text">Existing diabetes</span>
+              </div>
+              <div class="risk__factor glass-card" data-delay="3">
+                <span class="risk__factor-icon">⚠️</span>
+                <span class="risk__factor-text">Symptoms have worsened</span>
+              </div>
+              <div class="risk__factor glass-card" data-delay="4">
+                <span class="risk__factor-icon">📋</span>
+                <span class="risk__factor-text">Previous follow-up was missed</span>
+              </div>
+            </div>
+            <p class="risk__disclaimer">
+              <svg viewBox="0 0 20 20" class="risk__info-icon"><circle cx="10" cy="10" r="9" fill="none" stroke="#22D3EE" stroke-width="1.5"/><text x="10" y="14" text-anchor="middle" fill="#22D3EE" font-size="12" font-weight="700">i</text></svg>
+              Decision-support result. The final clinical decision remains with the healthcare professional.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- LIVE VITALS SECTION -->
+    <section id="live-vitals" class="section section--vitals">
+      <div class="vitals__container">
+        <span class="section__label">MONITORING</span>
+        <h2 class="section__title">Live Health Vitals</h2>
+        <div class="vitals__grid" id="vitals-grid">
+          <div class="vitals__panel glass-card" data-vital="spo2">
+            <div class="vitals__panel-header">
+              <span class="vitals__panel-title">Oxygen Saturation</span>
+              <span class="vitals__panel-badge vitals__panel-badge--good">Normal</span>
+            </div>
+            <canvas class="vitals__waveform" data-type="spo2"></canvas>
+            <div class="vitals__panel-values">
+              <span class="vitals__current" data-target="97">0</span>
+              <span class="vitals__unit">% SpO₂</span>
+              <div class="vitals__trend vitals__trend--up">
+                <span class="vitals__prev">Previous: 95%</span>
+                <span class="vitals__arrow">↑</span>
+              </div>
+            </div>
+          </div>
+          <div class="vitals__panel glass-card" data-vital="bp">
+            <div class="vitals__panel-header">
+              <span class="vitals__panel-title">Blood Pressure</span>
+              <span class="vitals__panel-badge vitals__panel-badge--warning">Elevated</span>
+            </div>
+            <canvas class="vitals__waveform" data-type="bp"></canvas>
+            <div class="vitals__panel-values">
+              <span class="vitals__current">142/90</span>
+              <span class="vitals__unit">mmHg</span>
+              <div class="vitals__trend vitals__trend--up-warn">
+                <span class="vitals__prev">Previous: 138/88</span>
+                <span class="vitals__arrow">↑</span>
+              </div>
+            </div>
+          </div>
+          <div class="vitals__panel glass-card" data-vital="pulse">
+            <div class="vitals__panel-header">
+              <span class="vitals__panel-title">Pulse Rate</span>
+              <span class="vitals__panel-badge vitals__panel-badge--good">Normal</span>
+            </div>
+            <canvas class="vitals__waveform" data-type="pulse"></canvas>
+            <div class="vitals__panel-values">
+              <span class="vitals__current" data-target="76">0</span>
+              <span class="vitals__unit">BPM</span>
+              <div class="vitals__trend vitals__trend--stable">
+                <span class="vitals__prev">Previous: 74</span>
+                <span class="vitals__arrow">→</span>
+              </div>
+            </div>
+          </div>
+          <div class="vitals__panel glass-card" data-vital="sugar">
+            <div class="vitals__panel-header">
+              <span class="vitals__panel-title">Blood Sugar</span>
+              <span class="vitals__panel-badge vitals__panel-badge--danger">High</span>
+            </div>
+            <canvas class="vitals__waveform" data-type="sugar"></canvas>
+            <div class="vitals__panel-values">
+              <span class="vitals__current" data-target="186">0</span>
+              <span class="vitals__unit">mg/dL</span>
+              <div class="vitals__trend vitals__trend--up-warn">
+                <span class="vitals__prev">Previous: 172</span>
+                <span class="vitals__arrow">↑</span>
+              </div>
+            </div>
+          </div>
+          <div class="vitals__panel glass-card" data-vital="temp">
+            <div class="vitals__panel-header">
+              <span class="vitals__panel-title">Temperature</span>
+              <span class="vitals__panel-badge vitals__panel-badge--good">Normal</span>
+            </div>
+            <canvas class="vitals__waveform" data-type="temp"></canvas>
+            <div class="vitals__panel-values">
+              <span class="vitals__current">98.6</span>
+              <span class="vitals__unit">°F</span>
+              <div class="vitals__trend vitals__trend--stable">
+                <span class="vitals__prev">Previous: 98.4°F</span>
+                <span class="vitals__arrow">→</span>
+              </div>
+            </div>
+          </div>
+          <div class="vitals__panel glass-card" data-vital="resp">
+            <div class="vitals__panel-header">
+              <span class="vitals__panel-title">Respiratory Rate</span>
+              <span class="vitals__panel-badge vitals__panel-badge--good">Normal</span>
+            </div>
+            <canvas class="vitals__waveform" data-type="resp"></canvas>
+            <div class="vitals__panel-values">
+              <span class="vitals__current" data-target="18">0</span>
+              <span class="vitals__unit">breaths/min</span>
+              <div class="vitals__trend vitals__trend--stable">
+                <span class="vitals__prev">Previous: 17</span>
+                <span class="vitals__arrow">→</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- REFERRAL JOURNEY SECTION -->
+    <section id="referral" class="section section--referral">
+      <div class="referral__container">
+        <span class="section__label">REFERRAL COORDINATION</span>
+        <h2 class="section__title">From Village Clinic to Hospital</h2>
+        <div class="referral__scene" id="referral-scene">
+          <svg class="referral__map" id="referral-map" viewBox="0 0 1000 400" preserveAspectRatio="xMidYMid meet">
+            <!-- Ground -->
+            <rect x="0" y="320" width="1000" height="80" fill="#0B2447" rx="0"/>
+            <!-- Rural Clinic -->
+            <g class="referral__clinic" id="ref-clinic" opacity="0">
+              <rect x="60" y="220" width="120" height="100" rx="8" fill="#1a3a5c"/>
+              <rect x="80" y="200" width="80" height="30" rx="4" fill="#22D3EE" opacity="0.3"/>
+              <path d="M70 220L120 180L170 220" fill="#1e4670" stroke="#22D3EE" stroke-width="2"/>
+              <rect x="100" y="260" width="40" height="60" rx="4" fill="#0B2447" stroke="#22D3EE" stroke-width="1"/>
+              <path d="M110 240V260M100 250H120" stroke="#22D3EE" stroke-width="3" stroke-linecap="round"/>
+              <text x="120" y="340" text-anchor="middle" fill="#22D3EE" font-size="14" font-family="Outfit">Rural PHC</text>
+            </g>
+            <!-- Road Path -->
+            <path id="ref-road" d="M190,300 C300,300 350,260 450,240 C550,220 600,280 700,260 C800,240 820,280 850,280" stroke="rgba(255,255,255,0.1)" stroke-width="40" fill="none" stroke-linecap="round"/>
+            <path id="ref-road-line" d="M190,300 C300,300 350,260 450,240 C550,220 600,280 700,260 C800,240 820,280 850,280" stroke="url(#roadGrad)" stroke-width="3" fill="none" stroke-linecap="round" stroke-dasharray="1500" stroke-dashoffset="1500"/>
+            <path id="ref-road-dash" d="M190,300 C300,300 350,260 450,240 C550,220 600,280 700,260 C800,240 820,280 850,280" stroke="rgba(255,255,255,0.3)" stroke-width="2" fill="none" stroke-dasharray="12 8" stroke-dashoffset="0" opacity="0"/>
+            <!-- Hospital -->
+            <g class="referral__hospital" id="ref-hospital" opacity="0">
+              <rect x="830" y="180" width="140" height="140" rx="8" fill="#1a3a5c"/>
+              <rect x="850" y="160" width="100" height="30" rx="4" fill="#10B981" opacity="0.3"/>
+              <path d="M840 180L900 140L960 180" fill="#1e4670" stroke="#10B981" stroke-width="2"/>
+              <rect x="870" y="240" width="60" height="80" rx="4" fill="#0B2447" stroke="#10B981" stroke-width="1"/>
+              <rect x="845" y="200" width="30" height="25" rx="3" fill="#0B2447" stroke="#10B981" stroke-width="1"/>
+              <rect x="925" y="200" width="30" height="25" rx="3" fill="#0B2447" stroke="#10B981" stroke-width="1"/>
+              <path d="M890 200V220M880 210H900" stroke="#10B981" stroke-width="4" stroke-linecap="round"/>
+              <text x="900" y="340" text-anchor="middle" fill="#10B981" font-size="14" font-family="Outfit">District Hospital</text>
+            </g>
+            <!-- Ambulance -->
+            <g id="ref-ambulance" opacity="0">
+              <rect x="-30" y="-18" width="60" height="28" rx="6" fill="#F97316"/>
+              <rect x="25" y="-12" width="20" height="22" rx="4" fill="#FB923C"/>
+              <circle cx="-10" cy="12" r="5" fill="#0B2447" stroke="#F97316" stroke-width="2"/>
+              <circle cx="30" cy="12" r="5" fill="#0B2447" stroke="#F97316" stroke-width="2"/>
+              <path d="M-5,-8V4M-11,-2H1" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/>
+            </g>
+            <!-- Distance marker -->
+            <g id="ref-info" opacity="0">
+              <rect x="440" y="140" width="160" height="70" rx="12" fill="rgba(11,36,71,0.9)" stroke="rgba(34,211,238,0.3)" stroke-width="1"/>
+              <text x="520" y="162" text-anchor="middle" fill="#22D3EE" font-size="12" font-family="Outfit">18 km · 28 min</text>
+              <text x="520" y="182" text-anchor="middle" fill="#10B981" font-size="11" font-family="Inter">Emergency: Available</text>
+              <text x="520" y="200" text-anchor="middle" fill="#F97316" font-size="11" font-family="Inter">Referral: Ready</text>
+            </g>
+            <defs><linearGradient id="roadGrad" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#22D3EE"/><stop offset="100%" stop-color="#10B981"/></linearGradient></defs>
+          </svg>
+          <div class="referral__info-panel glass-card" id="ref-info-panel">
+            <h3 class="referral__dest-name">District Hospital Sehore</h3>
+            <div class="referral__details">
+              <div class="referral__detail"><span class="referral__detail-label">Distance</span><span class="referral__detail-value">18 km</span></div>
+              <div class="referral__detail"><span class="referral__detail-label">Travel Time</span><span class="referral__detail-value">28 minutes</span></div>
+              <div class="referral__detail"><span class="referral__detail-label">Emergency</span><span class="referral__detail-value referral__detail-value--available">Available</span></div>
+              <div class="referral__detail"><span class="referral__detail-label">Referral</span><span class="referral__detail-value referral__detail-value--ready">Ready</span></div>
+            </div>
+            <div class="referral__buttons">
+              <button class="btn btn--primary magnetic-btn">Send Referral</button>
+              <button class="btn btn--outline magnetic-btn">Request Ambulance</button>
+              <button class="btn btn--outline magnetic-btn">Call Hospital</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- FEATURES SECTION -->
+    <section id="features" class="section section--features">
+      <div class="features__container">
+        <span class="section__label">CAPABILITIES</span>
+        <h2 class="section__title">Built for Real Healthcare Needs</h2>
+        <div class="features__grid" id="features-grid">
+          <div class="feature__tile glass-card" data-feature="priority">
+            <div class="feature__icon-wrap">
+              <svg viewBox="0 0 48 48" class="feature__icon"><path d="M24 4L30 16H42L32 24L36 38L24 30L12 38L16 24L6 16H18Z" fill="none" stroke="#22D3EE" stroke-width="2"/></svg>
+            </div>
+            <h3 class="feature__title">Smart Patient Prioritisation</h3>
+            <p class="feature__desc">Automatically ranks patients based on clinical urgency and vital sign trends.</p>
+          </div>
+          <div class="feature__tile glass-card" data-feature="trends">
+            <div class="feature__icon-wrap">
+              <svg viewBox="0 0 48 48" class="feature__icon"><path d="M6 38L14 26L22 30L30 14L38 18L46 6" stroke="#10B981" stroke-width="2.5" fill="none" stroke-linecap="round"/></svg>
+            </div>
+            <h3 class="feature__title">Health-Trend Monitoring</h3>
+            <p class="feature__desc">Track vital sign patterns across multiple visits to detect gradual changes.</p>
+          </div>
+          <div class="feature__tile glass-card" data-feature="alerts">
+            <div class="feature__icon-wrap">
+              <svg viewBox="0 0 48 48" class="feature__icon"><path d="M24 4V8M8 24H4M44 24H40M12 12L9 9M36 12L39 9" stroke="#F97316" stroke-width="2.5" stroke-linecap="round"/><circle cx="24" cy="24" r="12" fill="none" stroke="#F97316" stroke-width="2.5"/><path d="M24 18V26L30 30" stroke="#F97316" stroke-width="2.5" fill="none" stroke-linecap="round"/></svg>
+            </div>
+            <h3 class="feature__title">Early Warning Alerts</h3>
+            <p class="feature__desc">Receive immediate notifications when patient vitals cross critical thresholds.</p>
+          </div>
+          <div class="feature__tile glass-card" data-feature="explain">
+            <div class="feature__icon-wrap">
+              <svg viewBox="0 0 48 48" class="feature__icon"><circle cx="24" cy="24" r="18" fill="none" stroke="#2563EB" stroke-width="2"/><circle cx="24" cy="18" r="2" fill="#2563EB"/><path d="M24 24V34" stroke="#2563EB" stroke-width="3" stroke-linecap="round"/></svg>
+            </div>
+            <h3 class="feature__title">Explainable Risk Factors</h3>
+            <p class="feature__desc">Understand exactly why a patient has been flagged with clear contributing factors.</p>
+          </div>
+          <div class="feature__tile glass-card" data-feature="history">
+            <div class="feature__icon-wrap">
+              <svg viewBox="0 0 48 48" class="feature__icon"><rect x="8" y="4" width="32" height="40" rx="4" fill="none" stroke="#22D3EE" stroke-width="2"/><path d="M16 14H32M16 22H28M16 30H24" stroke="#22D3EE" stroke-width="2" stroke-linecap="round"/></svg>
+            </div>
+            <h3 class="feature__title">Patient History</h3>
+            <p class="feature__desc">Access complete patient records, visit history, and treatment notes in one place.</p>
+          </div>
+          <div class="feature__tile glass-card" data-feature="referral">
+            <div class="feature__icon-wrap">
+              <svg viewBox="0 0 48 48" class="feature__icon"><rect x="4" y="16" width="24" height="16" rx="3" fill="none" stroke="#EF4444" stroke-width="2"/><circle cx="12" cy="34" r="4" fill="none" stroke="#EF4444" stroke-width="2"/><circle cx="34" cy="34" r="4" fill="none" stroke="#EF4444" stroke-width="2"/><path d="M28 24H40V28H28Z" fill="none" stroke="#EF4444" stroke-width="2"/><path d="M12 20V28M8 24H16" stroke="#EF4444" stroke-width="2" stroke-linecap="round"/></svg>
+            </div>
+            <h3 class="feature__title">Hospital Referral</h3>
+            <p class="feature__desc">Coordinate referrals with nearby hospitals including ambulance and bed availability.</p>
+          </div>
+          <div class="feature__tile glass-card" data-feature="offline">
+            <div class="feature__icon-wrap">
+              <svg viewBox="0 0 48 48" class="feature__icon"><path d="M8 32C8 24 14 20 24 20C34 20 40 24 40 32" stroke="#F97316" stroke-width="2.5" fill="none" stroke-linecap="round"/><path d="M4 4L44 44" stroke="#F97316" stroke-width="2.5" stroke-linecap="round"/><circle cx="24" cy="38" r="3" fill="#F97316"/></svg>
+            </div>
+            <h3 class="feature__title">Offline Data Entry</h3>
+            <p class="feature__desc">Continue recording patient data even without internet. Syncs automatically when back online.</p>
+          </div>
+          <div class="feature__tile glass-card" data-feature="language">
+            <div class="feature__icon-wrap">
+              <svg viewBox="0 0 48 48" class="feature__icon"><circle cx="24" cy="24" r="18" fill="none" stroke="#10B981" stroke-width="2"/><path d="M6 24H42M24 6C18 12 16 18 16 24C16 30 18 36 24 42M24 6C30 12 32 18 32 24C32 30 30 36 24 42" stroke="#10B981" stroke-width="2" fill="none"/></svg>
+            </div>
+            <h3 class="feature__title">Hindi & English Support</h3>
+            <p class="feature__desc">Full bilingual interface designed for healthcare workers across rural India.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- RURAL HEALTHCARE SECTION -->
+    <section id="rural" class="section section--rural">
+      <div class="rural__scene" id="rural-scene">
+        <!-- Layered parallax village illustration -->
+        <div class="rural__layer rural__layer--sky" data-depth="0.05"></div>
+        <div class="rural__layer rural__layer--clouds" data-depth="0.1">
+          <div class="rural__cloud rural__cloud--1"></div>
+          <div class="rural__cloud rural__cloud--2"></div>
+          <div class="rural__cloud rural__cloud--3"></div>
+        </div>
+        <div class="rural__layer rural__layer--hills" data-depth="0.15"></div>
+        <div class="rural__layer rural__layer--trees" data-depth="0.25"></div>
+        <div class="rural__layer rural__layer--village" data-depth="0.35">
+          <div class="rural__building rural__building--clinic"></div>
+          <div class="rural__building rural__building--home1"></div>
+          <div class="rural__building rural__building--home2"></div>
+        </div>
+        <div class="rural__layer rural__layer--ground" data-depth="0.4"></div>
+        <div class="rural__layer rural__layer--worker" data-depth="0.5">
+          <div class="rural__worker"></div>
+        </div>
+      </div>
+      <div class="rural__content">
+        <h2 class="rural__heading">Technology that reaches where healthcare is needed most.</h2>
+        <p class="rural__text">Designed for PHCs, community health centres, ASHA workers and rural clinics.</p>
+      </div>
+    </section>
+
+    <!-- DASHBOARD PREVIEW SECTION -->
+    <section id="dashboard" class="section section--dashboard">
+      <div class="dashboard__container">
+        <span class="section__label">PLATFORM PREVIEW</span>
+        <h2 class="section__title">The Doctor ji Dashboard</h2>
+        <div class="dashboard__frame" id="dashboard-frame">
+          <div class="dashboard__browser">
+            <div class="dashboard__browser-bar">
+              <span class="dashboard__browser-dot dashboard__browser-dot--red"></span>
+              <span class="dashboard__browser-dot dashboard__browser-dot--yellow"></span>
+              <span class="dashboard__browser-dot dashboard__browser-dot--green"></span>
+              <span class="dashboard__browser-url">doctorji.health/dashboard</span>
+            </div>
+            <div class="dashboard__screen">
+              <div class="dashboard__sidebar">
+                <div class="dashboard__sidebar-logo">Dj</div>
+                <div class="dashboard__sidebar-item dashboard__sidebar-item--active">📊</div>
+                <div class="dashboard__sidebar-item">👥</div>
+                <div class="dashboard__sidebar-item">🔔</div>
+                <div class="dashboard__sidebar-item">📋</div>
+                <div class="dashboard__sidebar-item">⚙️</div>
+              </div>
+              <div class="dashboard__main">
+                <div class="dashboard__cards-row">
+                  <div class="dashboard__card dashboard__card--waiting" data-anim="card">
+                    <span class="dashboard__card-num" data-target="23">0</span>
+                    <span class="dashboard__card-label">Patients Waiting</span>
+                  </div>
+                  <div class="dashboard__card dashboard__card--critical" data-anim="card">
+                    <span class="dashboard__card-num" data-target="4">0</span>
+                    <span class="dashboard__card-label">Critical Cases</span>
+                  </div>
+                  <div class="dashboard__card dashboard__card--review" data-anim="card">
+                    <span class="dashboard__card-num" data-target="7">0</span>
+                    <span class="dashboard__card-label">Review Required</span>
+                  </div>
+                  <div class="dashboard__card dashboard__card--stable" data-anim="card">
+                    <span class="dashboard__card-num" data-target="12">0</span>
+                    <span class="dashboard__card-label">Stable Patients</span>
+                  </div>
+                </div>
+                <div class="dashboard__chart-area" data-anim="chart">
+                  <div class="dashboard__chart-title">Live Vital Trends</div>
+                  <div class="dashboard__chart-bars">
+                    <div class="dashboard__chart-bar" style="--bar-h:65%;" data-anim="bar"></div>
+                    <div class="dashboard__chart-bar dashboard__chart-bar--accent" style="--bar-h:85%;" data-anim="bar"></div>
+                    <div class="dashboard__chart-bar" style="--bar-h:45%;" data-anim="bar"></div>
+                    <div class="dashboard__chart-bar dashboard__chart-bar--warn" style="--bar-h:92%;" data-anim="bar"></div>
+                    <div class="dashboard__chart-bar" style="--bar-h:55%;" data-anim="bar"></div>
+                    <div class="dashboard__chart-bar dashboard__chart-bar--accent" style="--bar-h:70%;" data-anim="bar"></div>
+                    <div class="dashboard__chart-bar" style="--bar-h:38%;" data-anim="bar"></div>
+                    <div class="dashboard__chart-bar dashboard__chart-bar--warn" style="--bar-h:78%;" data-anim="bar"></div>
+                  </div>
+                </div>
+                <div class="dashboard__alert" data-anim="alert">
+                  <span class="dashboard__alert-icon">🔴</span>
+                  <span class="dashboard__alert-text">Critical: Meena Devi — SpO₂ dropped to 89%</span>
+                  <span class="dashboard__alert-time">2 min ago</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- CALL TO ACTION SECTION -->
+    <section id="cta" class="section section--cta">
+      <div class="cta__bg">
+        <div class="cta__heart-bg" id="cta-heart">
+          <svg viewBox="0 0 200 200" class="cta__heart-svg">
+            <path d="M100 180C100 180 20 120 20 70C20 40 40 20 60 20C75 20 90 30 100 45C110 30 125 20 140 20C160 20 180 40 180 70C180 120 100 180 100 180Z" fill="none" stroke="rgba(34,211,238,0.15)" stroke-width="2"/>
+            <path d="M55 85L75 85L82 60L100 120L118 75L125 85L145 85" stroke="rgba(34,211,238,0.2)" stroke-width="2" fill="none" stroke-linecap="round"/>
+          </svg>
+        </div>
+      </div>
+      <div class="cta__container">
+        <h2 class="cta__heading" id="cta-heading">
+          <span class="cta__heading-line">Every warning sign deserves attention.</span>
+        </h2>
+        <h2 class="cta__heading cta__heading--second" id="cta-heading-2">
+          <span class="cta__heading-line">Every patient deserves the right priority.</span>
+        </h2>
+        <a href="#" class="btn btn--primary btn--xl magnetic-btn cta__btn" id="cta-btn">
+          <span class="btn__text">Start With Doctor ji</span>
+          <span class="btn__glow"></span>
+          <span class="btn__ripple"></span>
+        </a>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ═══════════════════════════════════════════════════ -->
+  <!-- FOOTER                                              -->
+  <!-- ═══════════════════════════════════════════════════ -->
+  <footer id="footer" class="footer">
+    <div class="footer__ecg">
+      <svg class="footer__ecg-svg" viewBox="0 0 1200 40" preserveAspectRatio="none">
+        <path class="footer__ecg-line" d="M0,20 L200,20 L220,20 L230,5 L240,35 L250,10 L260,25 L270,20 L400,20 L420,20 L430,5 L440,35 L450,10 L460,25 L470,20 L600,20 L620,20 L630,5 L640,35 L650,10 L660,25 L670,20 L800,20 L820,20 L830,5 L840,35 L850,10 L860,25 L870,20 L1000,20 L1020,20 L1030,5 L1040,35 L1050,10 L1060,25 L1070,20 L1200,20" stroke="rgba(34,211,238,0.3)" stroke-width="2" fill="none"/>
+      </svg>
+    </div>
+    <div class="footer__inner">
+      <div class="footer__brand">
+        <div class="footer__logo">
+          <svg viewBox="0 0 64 64" class="footer__logo-icon">
+            <path d="M32 58C32 58 8 40 8 24C8 14 16 8 24 8C28 8 31 10 32 13C33 10 36 8 40 8C48 8 56 14 56 24C56 40 32 58 32 58Z" fill="url(#footHeartGrad)"/>
+            <path d="M22 28L27 28L29 22L32 34L35 26L37 28L42 28" stroke="#F8FAFC" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+            <defs><linearGradient id="footHeartGrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#22D3EE"/><stop offset="100%" stop-color="#2563EB"/></linearGradient></defs>
+          </svg>
+          <span class="footer__logo-text">Doctor ji</span>
+        </div>
+        <p class="footer__tagline">Sahi Salah, Sehat Ka Saath</p>
+      </div>
+      <div class="footer__columns">
+        <div class="footer__col">
+          <h4 class="footer__col-title">Platform</h4>
+          <a href="#how-it-works" class="footer__link">How It Works</a>
+          <a href="#triage" class="footer__link">Triage System</a>
+          <a href="#features" class="footer__link">Features</a>
+          <a href="#dashboard" class="footer__link">Dashboard</a>
+        </div>
+        <div class="footer__col">
+          <h4 class="footer__col-title">Resources</h4>
+          <a href="#" class="footer__link">Documentation</a>
+          <a href="#" class="footer__link">Training Guide</a>
+          <a href="#" class="footer__link">Research</a>
+          <a href="#" class="footer__link">Case Studies</a>
+        </div>
+        <div class="footer__col">
+          <h4 class="footer__col-title">Contact</h4>
+          <a href="#" class="footer__link">Support</a>
+          <a href="#" class="footer__link">Partnerships</a>
+          <a href="#" class="footer__link">Privacy Policy</a>
+          <a href="#" class="footer__link">Terms of Service</a>
+        </div>
+      </div>
+      <div class="footer__social">
+        <a href="#" class="footer__social-link" aria-label="Twitter">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M22.46 6c-.77.35-1.6.58-2.46.69.88-.53 1.56-1.37 1.88-2.38-.83.5-1.75.85-2.72 1.05C18.37 4.5 17.26 4 16 4c-2.35 0-4.27 1.92-4.27 4.29 0 .34.04.67.11.98C8.28 9.09 5.11 7.38 3 4.79c-.37.63-.58 1.37-.58 2.15 0 1.49.75 2.81 1.91 3.56-.71 0-1.37-.2-1.95-.5v.03c0 2.08 1.48 3.82 3.44 4.21a4.22 4.22 0 0 1-1.93.07 4.28 4.28 0 0 0 4 2.98 8.521 8.521 0 0 1-5.33 1.84c-.34 0-.68-.02-1.02-.06C3.44 20.29 5.7 21 8.12 21 16 21 20.33 14.46 20.33 8.79c0-.19 0-.37-.01-.56.84-.6 1.56-1.36 2.14-2.23z"/></svg>
+        </a>
+        <a href="#" class="footer__social-link" aria-label="LinkedIn">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+        </a>
+        <a href="#" class="footer__social-link" aria-label="GitHub">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+        </a>
+      </div>
+    </div>
+    <div class="footer__bottom">
+      <p>© 2026 Doctor ji. Sahi Salah, Sehat Ka Saath.</p>
+    </div>
+  </footer>
+
+  <!-- Accessibility: Reduce Motion Toggle -->
+  <button id="reduce-motion-toggle" class="reduce-motion-toggle" aria-label="Toggle reduced motion" title="Reduce Motion">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M8 12h8M12 8v8" stroke-linecap="round"/></svg>
+  </button>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

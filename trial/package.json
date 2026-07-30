@@ -1,0 +1,19 @@
+{
+  "name": "doctor-ji",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Doctor ji — Smart Rural Healthcare Triage Platform",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "gsap": "^3.12.7",
+    "lenis": "^1.1.18"
+  },
+  "devDependencies": {
+    "vite": "^6.3.5"
+  }
+}

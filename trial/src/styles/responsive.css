@@ -1,0 +1,247 @@
+/* ═══════════════════════════════════════════════════════
+   DOCTOR JI — RESPONSIVE STYLES
+   ═══════════════════════════════════════════════════════ */
+
+/* ── Desktop Large (> 1200px) ───────────────────── */
+@media (min-width: 1200px) {
+  .how__line-svg {
+    display: block;
+  }
+}
+
+/* ── Tablet (≤ 1024px) ──────────────────────────── */
+@media (max-width: 1024px) {
+  .hero__container {
+    grid-template-columns: 1fr;
+    text-align: center;
+  }
+  .hero__content {
+    align-items: center;
+  }
+  .hero__description {
+    max-width: 600px;
+  }
+  .hero__visual {
+    height: 400px;
+  }
+  .hero__buttons {
+    justify-content: center;
+  }
+
+  .problem__stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .problem__stories {
+    grid-template-columns: 1fr;
+    max-width: 500px;
+    margin: 0 auto;
+  }
+
+  .how__steps {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .triage__cards {
+    grid-template-columns: 1fr;
+    max-width: 450px;
+    margin: 0 auto;
+  }
+
+  .risk__display {
+    grid-template-columns: 1fr;
+    text-align: center;
+  }
+  .risk__factors {
+    align-items: center;
+  }
+
+  .vitals__grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .features__grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .footer__inner {
+    grid-template-columns: 1fr;
+    gap: var(--space-8);
+  }
+  .footer__columns {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .dashboard__cards-row {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* ── Mobile (≤ 768px) ───────────────────────────── */
+@media (max-width: 768px) {
+  .section {
+    padding: var(--space-16) var(--space-4);
+  }
+
+  .navbar__links {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(7, 26, 45, 0.98);
+    backdrop-filter: blur(20px);
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-6);
+    z-index: 5;
+  }
+  .navbar__links.open {
+    display: flex;
+  }
+  .navbar__link {
+    font-size: var(--fs-h4);
+  }
+  .navbar__underline {
+    display: none;
+  }
+
+  .navbar__actions {
+    display: none;
+  }
+
+  .navbar__hamburger {
+    display: flex;
+  }
+
+  .navbar__inner {
+    padding: 0 var(--space-4);
+  }
+
+  /* Cursor hidden on touch devices */
+  .cursor-dot,
+  .cursor-glow {
+    display: none;
+  }
+  body {
+    cursor: auto;
+  }
+  button, a, .btn {
+    cursor: pointer;
+  }
+
+  .hero__visual {
+    height: 300px;
+  }
+  .hero__heading {
+    font-size: clamp(2rem, 8vw, 3rem);
+  }
+  .hero__object--dashboard,
+  .hero__object--file,
+  .hero__object--pin {
+    display: none;
+  }
+
+  .intro__text {
+    font-size: var(--fs-h3);
+  }
+
+  .problem__stats {
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--space-4);
+  }
+  .problem__stat-number {
+    font-size: clamp(2rem, 8vw, 3rem);
+  }
+
+  .how__steps {
+    grid-template-columns: 1fr;
+    max-width: 400px;
+    margin: 0 auto;
+  }
+
+  .vitals__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .features__grid {
+    grid-template-columns: 1fr;
+    max-width: 400px;
+    margin: 0 auto;
+  }
+  .feature__desc {
+    opacity: 1;
+    transform: none;
+  }
+
+  .referral__buttons {
+    flex-direction: column;
+  }
+  .referral__buttons .btn {
+    width: 100%;
+  }
+
+  .dashboard__screen {
+    flex-direction: column;
+  }
+  .dashboard__sidebar {
+    width: 100%;
+    flex-direction: row;
+    justify-content: center;
+    border-right: none;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+  }
+  .dashboard__cards-row {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .footer__columns {
+    grid-template-columns: 1fr;
+    gap: var(--space-6);
+  }
+}
+
+/* ── Small Mobile (≤ 480px) ─────────────────────── */
+@media (max-width: 480px) {
+  .hero__object--stethoscope,
+  .hero__object--medkit,
+  .hero__object--ambulance {
+    display: none;
+  }
+  .hero__visual {
+    height: 220px;
+  }
+
+  .problem__stats {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .intro__keywords {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .triage__vitals-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .cta__heading {
+    font-size: clamp(1.5rem, 6vw, 2rem);
+  }
+}
+
+/* ── Prefers Reduced Motion ─────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.2s !important;
+  }
+  .particles-canvas {
+    display: none;
+  }
+  .cursor-glow {
+    display: none;
+  }
+  .hero__object {
+    animation: none !important;
+  }
+}
