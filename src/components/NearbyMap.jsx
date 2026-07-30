@@ -75,6 +75,8 @@ export default function NearbyMap({ onHospitalsFound }) {
       document.head.appendChild(link);
     }
 
+    let resizeObserver;
+
     import('leaflet').then((L) => {
       const campusLat = 23.0742;
       const campusLon = 76.8627;
@@ -93,13 +95,13 @@ export default function NearbyMap({ onHospitalsFound }) {
         .addAttribution('© <a href="https://carto.com/">CARTO</a> © <a href="https://www.openstreetmap.org/copyright">OSM</a>')
         .addTo(map);
 
-      // ── Premium dark tile layer ──
+      // ── Clean & Bright Voyager Tile Layer ──
       L.tileLayer(
-        'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+        'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
         { maxZoom: 19, subdomains: 'abcd' }
       ).addTo(map);
 
-      // ── Campus pin (animated glowing dot) ──
+      // ── Campus pin (animated blue dot) ──
       const campusIcon = L.divIcon({
         className: '',
         html: `
@@ -174,15 +176,33 @@ export default function NearbyMap({ onHospitalsFound }) {
           .bindPopup(popup, { className: 'map-popup-container', closeButton: false, offset: [0, -5] });
       });
 
-      // Draw faint connection lines from campus to hospitals
+      // Draw dashed connection lines from campus to hospitals
       HOSPITALS.forEach((h) => {
         L.polyline([[campusLat, campusLon], [h.lat, h.lon]], {
-          color: '#14b8a6',
-          weight: 1,
-          opacity: 0.2,
+          color: '#0d9488',
+          weight: 1.5,
+          opacity: 0.35,
           dashArray: '6, 8',
         }).addTo(map);
       });
+
+      // Handle resize & layout shifts automatically to prevent grey unrendered areas
+      const forceInvalidate = () => {
+        if (mapRef.current) {
+          mapRef.current.invalidateSize();
+        }
+      };
+
+      forceInvalidate();
+      const timer1 = setTimeout(forceInvalidate, 200);
+      const timer2 = setTimeout(forceInvalidate, 800);
+
+      if (window.ResizeObserver && mapContainerRef.current) {
+        resizeObserver = new ResizeObserver(() => {
+          forceInvalidate();
+        });
+        resizeObserver.observe(mapContainerRef.current);
+      }
 
       // Pass hardcoded hospitals to parent immediately
       if (onHospitalsFound) onHospitalsFound(HOSPITALS);
@@ -190,7 +210,13 @@ export default function NearbyMap({ onHospitalsFound }) {
     });
 
     return () => {
-      if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; }
+      if (resizeObserver && mapContainerRef.current) {
+        resizeObserver.disconnect();
+      }
+      if (mapRef.current) {
+        mapRef.current.remove();
+        mapRef.current = null;
+      }
     };
   }, []);
 
