@@ -87,9 +87,23 @@ export default function PatientSignup() {
       return;
     }
 
+    // Ensure we have an active session before inserting the profile row.
+    // signUp() may not return a session when email confirmation is enabled.
+    if (data?.user && !data.session) {
+      const { error: signInErr } = await supabase.auth.signInWithPassword({
+        email: form.email,
+        password: form.password,
+      });
+      if (signInErr) {
+        setError('Account created but could not sign in: ' + signInErr.message);
+        setLoading(false);
+        return;
+      }
+    }
+
     // Insert patient profile with computed age
     if (data?.user) {
-      await supabase.from('patients').insert({
+      const { error: insertErr } = await supabase.from('patients').insert({
         id: data.user.id,
         full_name: form.fullName,
         dob: form.dob,
@@ -102,6 +116,12 @@ export default function PatientSignup() {
         allergies: form.allergies,
         emergency_contact: form.emergencyContact,
       });
+      if (insertErr) {
+        console.error('Patient profile insert failed:', insertErr);
+        setError('Account created but profile save failed: ' + insertErr.message);
+        setLoading(false);
+        return;
+      }
     }
 
     navigate('/patient/dashboard');

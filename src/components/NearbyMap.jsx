@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Phone, MapPin, Navigation, AlertTriangle } from 'lucide-react';
+import { Phone, MapPin, Navigation, AlertTriangle, Locate } from 'lucide-react';
 
 // ── Hardcoded hospitals near VIT Bhopal ──────────────────────────
 const HOSPITALS = [
@@ -79,79 +79,109 @@ export default function NearbyMap({ onHospitalsFound }) {
       const campusLat = 23.0742;
       const campusLon = 76.8627;
 
-      const map = L.map(mapContainerRef.current, { zoomControl: true }).setView(
-        [campusLat, campusLon],
-        13
-      );
+      const map = L.map(mapContainerRef.current, {
+        zoomControl: false,
+        attributionControl: false,
+      }).setView([campusLat, campusLon], 11);
       mapRef.current = map;
 
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap contributors',
-        maxZoom: 19,
-      }).addTo(map);
+      // Add zoom control to bottom-left
+      L.control.zoom({ position: 'bottomleft' }).addTo(map);
 
-      // ── Campus pin (blue dot) ─────────────────────────────────
+      // Add attribution to bottom-right
+      L.control.attribution({ position: 'bottomright', prefix: false })
+        .addAttribution('© <a href="https://carto.com/">CARTO</a> © <a href="https://www.openstreetmap.org/copyright">OSM</a>')
+        .addTo(map);
+
+      // ── Premium dark tile layer ──
+      L.tileLayer(
+        'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+        { maxZoom: 19, subdomains: 'abcd' }
+      ).addTo(map);
+
+      // ── Campus pin (animated glowing dot) ──
       const campusIcon = L.divIcon({
         className: '',
-        html: `<div style="
-          width:16px;height:16px;border-radius:50%;
-          background:#3b82f6;border:3px solid white;
-          box-shadow:0 2px 8px rgba(59,130,246,.5);">
-        </div>`,
-        iconSize: [16, 16],
-        iconAnchor: [8, 8],
+        html: `
+          <div class="map-marker-campus">
+            <div class="map-marker-campus__pulse"></div>
+            <div class="map-marker-campus__dot"></div>
+          </div>`,
+        iconSize: [40, 40],
+        iconAnchor: [20, 20],
       });
+
+      const campusPopup = `
+        <div class="map-popup-premium">
+          <div class="map-popup-premium__badge">📍 YOUR LOCATION</div>
+          <div class="map-popup-premium__name">VIT Bhopal University</div>
+          <div class="map-popup-premium__sub">Academic Block 2, Kotri Kalan</div>
+        </div>`;
+
       L.marker([campusLat, campusLon], { icon: campusIcon })
         .addTo(map)
-        .bindPopup('<b>📍 VIT Bhopal — AB2</b><br><small>Academic Block 2</small>')
+        .bindPopup(campusPopup, { className: 'map-popup-container', closeButton: false, offset: [0, -5] })
         .openPopup();
 
-      // Campus label
-      const labelIcon = L.divIcon({
-        className: '',
-        html: `<div style="
-          background:rgba(13,148,136,.9);color:white;
-          font-size:10px;font-weight:700;padding:3px 7px;
-          border-radius:4px;white-space:nowrap;
-          box-shadow:0 2px 6px rgba(0,0,0,.2);">
-          🏫 VIT Bhopal AB2
-        </div>`,
-        iconSize: [120, 22],
-        iconAnchor: [60, 28],
-      });
-      L.marker([campusLat + 0.0009, campusLon], { icon: labelIcon, interactive: false }).addTo(map);
-
-      // ── Hospital markers ──────────────────────────────────────
+      // ── Hospital markers ──
       HOSPITALS.forEach((h, i) => {
         const isOnCampus = i === 0;
-        const markerHtml = isOnCampus
-          ? `<div style="
-              width:30px;height:30px;border-radius:50%;
-              background:linear-gradient(135deg,#0d9488,#14b8a6);
-              border:3px solid white;
-              display:flex;align-items:center;justify-content:center;
-              color:white;font-size:13px;font-weight:700;
-              box-shadow:0 2px 8px rgba(13,148,136,.5);">+</div>`
-          : `<div style="
-              width:28px;height:28px;border-radius:50%;
-              background:#ef4444;border:3px solid white;
-              display:flex;align-items:center;justify-content:center;
-              color:white;font-size:12px;font-weight:700;
-              box-shadow:0 2px 8px rgba(239,68,68,.45);">H</div>`;
 
-        const icon = L.divIcon({ className: '', html: markerHtml, iconSize: [30, 30], iconAnchor: [15, 15] });
+        const markerHtml = isOnCampus
+          ? `<div class="map-marker-hospital map-marker-hospital--campus">
+               <div class="map-marker-hospital__pulse map-marker-hospital__pulse--teal"></div>
+               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6v12M6 12h12"/></svg>
+             </div>`
+          : `<div class="map-marker-hospital">
+               <div class="map-marker-hospital__pulse"></div>
+               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6v12M6 12h12"/></svg>
+             </div>`;
+
+        const icon = L.divIcon({
+          className: '',
+          html: markerHtml,
+          iconSize: [36, 36],
+          iconAnchor: [18, 18],
+        });
+
+        const ratingHtml = h.rating
+          ? `<div class="map-popup-premium__rating">
+               <span class="map-popup-premium__stars">★ ${h.rating}</span>
+               <span class="map-popup-premium__reviews">(${h.stars} reviews)</span>
+             </div>`
+          : '';
+
+        const tagHtml = isOnCampus
+          ? '<div class="map-popup-premium__badge map-popup-premium__badge--teal">🏥 ON CAMPUS</div>'
+          : '';
 
         const popup = `
-          <div style="font-family:Inter,sans-serif;min-width:160px;">
-            ${isOnCampus ? '<div style="color:#0d9488;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px;">🏥 ON CAMPUS</div>' : ''}
-            <div style="font-weight:700;font-size:.85rem;margin-bottom:2px;">${h.name}</div>
-            <div style="color:#64748b;font-size:.72rem;">${h.subtitle}</div>
-            ${h.rating ? `<div style="color:#f59e0b;font-size:.72rem;margin-top:2px;">★ ${h.rating} (${h.stars} reviews)</div>` : ''}
-            <div style="color:#475569;font-size:.7rem;margin-top:4px;line-height:1.4;">${h.desc}</div>
-            <a href="${h.mapsUrl}" target="_blank" style="color:#14b8a6;font-size:.72rem;margin-top:4px;display:block;">📍 View on Maps</a>
+          <div class="map-popup-premium">
+            ${tagHtml}
+            <div class="map-popup-premium__name">${h.name}</div>
+            <div class="map-popup-premium__sub">${h.subtitle}</div>
+            ${ratingHtml}
+            <div class="map-popup-premium__desc">${h.desc}</div>
+            <div class="map-popup-premium__actions">
+              <a href="${h.mapsUrl}" target="_blank" rel="noopener noreferrer" class="map-popup-premium__btn">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                View on Maps
+              </a>
+            </div>
           </div>`;
 
-        L.marker([h.lat, h.lon], { icon }).addTo(map).bindPopup(popup);
+        L.marker([h.lat, h.lon], { icon }).addTo(map)
+          .bindPopup(popup, { className: 'map-popup-container', closeButton: false, offset: [0, -5] });
+      });
+
+      // Draw faint connection lines from campus to hospitals
+      HOSPITALS.forEach((h) => {
+        L.polyline([[campusLat, campusLon], [h.lat, h.lon]], {
+          color: '#14b8a6',
+          weight: 1,
+          opacity: 0.2,
+          dashArray: '6, 8',
+        }).addTo(map);
       });
 
       // Pass hardcoded hospitals to parent immediately
@@ -168,10 +198,40 @@ export default function NearbyMap({ onHospitalsFound }) {
     <div className="map-wrapper">
       {loading && (
         <div className="map-loading">
-          <div className="spinner" style={{ borderTopColor: '#14b8a6', borderColor: '#e2e8f0' }} />
-          <span>Loading map...</span>
+          <div className="map-loading__spinner">
+            <div className="map-loading__ring"></div>
+            <Locate size={20} />
+          </div>
+          <span>Locating nearby hospitals...</span>
         </div>
       )}
+
+      {/* Glassmorphic header overlay */}
+      <div className="map-header-overlay">
+        <div className="map-header-overlay__icon">
+          <MapPin size={14} />
+        </div>
+        <div className="map-header-overlay__text">
+          <div className="map-header-overlay__title">Nearby Hospitals</div>
+          <div className="map-header-overlay__sub">VIT Bhopal · {HOSPITALS.length} facilities</div>
+        </div>
+      </div>
+
+      {/* Floating legend */}
+      <div className="map-legend">
+        <div className="map-legend__item">
+          <span className="map-legend__dot map-legend__dot--blue"></span>
+          <span>You</span>
+        </div>
+        <div className="map-legend__item">
+          <span className="map-legend__dot map-legend__dot--teal"></span>
+          <span>Campus</span>
+        </div>
+        <div className="map-legend__item">
+          <span className="map-legend__dot map-legend__dot--red"></span>
+          <span>Hospital</span>
+        </div>
+      </div>
 
       {/* SOS button */}
       <a href="tel:112" className="sos-btn" title="Call 112 Emergency">

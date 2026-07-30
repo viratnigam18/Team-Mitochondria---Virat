@@ -6,6 +6,7 @@ const AuthContext = createContext({
   role: null,
   profile: null,
   loading: true,
+  refreshProfile: () => {},
 });
 
 /**
@@ -46,6 +47,16 @@ export function AuthProvider({ children }) {
     }
   };
 
+  /**
+   * Call this after updating the profile in the database
+   * so the in-memory profile state stays in sync.
+   */
+  const refreshProfile = async () => {
+    if (user) {
+      await fetchProfile(user);
+    }
+  };
+
   useEffect(() => {
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -67,7 +78,7 @@ export function AuthProvider({ children }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, role, profile, loading }}>
+    <AuthContext.Provider value={{ user, role, profile, loading, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );

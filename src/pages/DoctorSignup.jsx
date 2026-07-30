@@ -107,9 +107,23 @@ export default function DoctorSignup() {
       return;
     }
 
-    // 3. Insert doctor profile with computed age
+    // 3. Ensure we have an active session before inserting the profile row.
+    //    signUp() may not return a session when email confirmation is enabled.
+    if (data?.user && !data.session) {
+      const { error: signInErr } = await supabase.auth.signInWithPassword({
+        email: form.email,
+        password: form.password,
+      });
+      if (signInErr) {
+        setError('Account created but could not sign in: ' + signInErr.message);
+        setLoading(false);
+        return;
+      }
+    }
+
+    // 4. Insert doctor profile with computed age
     if (data?.user) {
-      await supabase.from('doctors').insert({
+      const { error: insertErr } = await supabase.from('doctors').insert({
         id: data.user.id,
         full_name: form.fullName,
         dob: form.dob,
@@ -121,9 +135,15 @@ export default function DoctorSignup() {
         certification: form.certification,
         dr_card_link: form.drCardLink,
         speciality: form.speciality,
-        experience: form.experience,
+        experience: form.experience ? parseInt(form.experience) : null,
         clinic_name: form.clinicName,
       });
+      if (insertErr) {
+        console.error('Doctor profile insert failed:', insertErr);
+        setError('Account created but profile save failed: ' + insertErr.message);
+        setLoading(false);
+        return;
+      }
     }
 
     navigate('/doctor/dashboard');

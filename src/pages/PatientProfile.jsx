@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabaseClient';
 import { User, Save, Loader } from 'lucide-react';
 
 export default function PatientProfile() {
-  const { user, profile } = useAuth();
+  const { user, profile, refreshProfile } = useAuth();
   const [form, setForm] = useState({
     full_name: '', dob: '', mobile: '', location: '',
     blood_group: '', allergies: '', prev_health_issue: '', emergency_contact: '',
@@ -41,6 +41,7 @@ export default function PatientProfile() {
     } else {
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
+      await refreshProfile();
     }
     setSaving(false);
   };

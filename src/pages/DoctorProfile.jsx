@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabaseClient';
 import { Stethoscope, Save, Loader } from 'lucide-react';
 
 export default function DoctorProfile() {
-  const { user, profile } = useAuth();
+  const { user, profile, refreshProfile } = useAuth();
   const [form, setForm] = useState({
     full_name: '', dob: '', mobile: '', location: '',
     degree: '', certification: '', dr_card_link: '',
@@ -43,7 +43,7 @@ export default function DoctorProfile() {
       experience: form.experience ? parseInt(form.experience) : null,
     }).eq('id', user.id);
     if (err) setError(err.message);
-    else { setSuccess(true); setTimeout(() => setSuccess(false), 3000); }
+    else { setSuccess(true); setTimeout(() => setSuccess(false), 3000); await refreshProfile(); }
     setSaving(false);
   };
 
