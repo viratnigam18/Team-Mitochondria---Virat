@@ -135,7 +135,7 @@ Analyze these symptoms and respond with the JSON format specified.`;
 
   // Save completed analysis to checkups table
   if (userId) {
-    const { error: dbError } = await supabase.from('checkups').insert({
+    const checkupPayload = {
       patient_id: userId,
       symptom_text: symptomText,
       severity: parsed.severity,
@@ -146,11 +146,31 @@ Analyze these symptoms and respond with the JSON format specified.`;
       cause_guess: parsed.cause_guess,
       future_risk: parsed.future_risk,
       avoid_list: parsed.avoid_list,
-    });
+    };
+
+    let { error: dbError } = await supabase.from('checkups').insert(checkupPayload);
+
+    // If foreign key constraint failed because patient row doesn't exist yet, self-heal
+    if (dbError && dbError.message?.includes('foreign key constraint')) {
+      console.warn('Patient row missing for checkups insert. Creating patient profile first...');
+      const { data: authUserData } = await supabase.auth.getUser();
+      if (authUserData?.user) {
+        await supabase.from('patients').upsert({
+          id: userId,
+          full_name: authUserData.user.user_metadata?.full_name || 'Patient',
+          email: authUserData.user.email,
+        }, { onConflict: 'id' });
+
+        // Retry insert
+        const retry = await supabase.from('checkups').insert(checkupPayload);
+        dbError = retry.error;
+      }
+    }
 
     if (dbError) {
       console.error('Failed to save checkup to DB:', dbError.message);
-      // Don't throw — still return result to user
+    } else {
+      console.log('Checkup successfully saved to patient history!');
     }
   }
 

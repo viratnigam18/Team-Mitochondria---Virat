@@ -44,38 +44,47 @@ export default function DoctorDashboard() {
 
   useEffect(() => { if (user) fetchData(); }, [user]);
 
-  // Realtime subscription for new connection requests
+  // Realtime subscription for new connection requests + auto-refresh
   useEffect(() => {
     if (!user) return;
 
     const channel = supabase
-      .channel('doctor-connections')
+      .channel('doctor-connections-all')
       .on(
         'postgres_changes',
         {
-          event: 'INSERT',
+          event: '*',
           schema: 'public',
           table: 'connections',
-          filter: `doctor_id=eq.${user.id}`,
         },
         async (payload) => {
-          if (payload.new.status === 'pending') {
-            // Fetch patient name for the toast
-            const { data: patient } = await supabase
-              .from('patients')
-              .select('full_name')
-              .eq('id', payload.new.patient_id)
-              .maybeSingle();
+          const record = payload.new || payload.old;
+          if (record && record.doctor_id === user.id) {
+            if (payload.eventType === 'INSERT' && record.status === 'pending') {
+              const { data: patient } = await supabase
+                .from('patients')
+                .select('full_name')
+                .eq('id', record.patient_id)
+                .maybeSingle();
 
-            const name = patient?.full_name || 'A patient';
-            addToast(`🔔 New request from ${name}!`, 'request');
+              const name = patient?.full_name || 'A patient';
+              addToast(`🔔 New request from ${name}!`, 'request');
+            }
             fetchData(); // Refresh lists
           }
         }
       )
       .subscribe();
 
-    return () => supabase.removeChannel(channel);
+    // Backup polling every 8 seconds in case Realtime WS drops
+    const interval = setInterval(() => {
+      fetchData();
+    }, 8000);
+
+    return () => {
+      supabase.removeChannel(channel);
+      clearInterval(interval);
+    };
   }, [user, addToast]);
 
   // Realtime subscription for new chat messages (for unread badges)

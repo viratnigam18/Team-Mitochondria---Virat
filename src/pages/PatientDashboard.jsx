@@ -157,9 +157,31 @@ export default function PatientDashboard() {
     setLoading(false);
   };
 
+  const [historyQuery, setHistoryQuery] = useState('');
+
   const sendRequest = async (doctorId) => {
     setSending(doctorId);
-    await supabase.from('connections').insert({ patient_id: user.id, doctor_id: doctorId });
+    let { error } = await supabase.from('connections').insert({ patient_id: user.id, doctor_id: doctorId });
+
+    if (error && error.message?.includes('foreign key constraint')) {
+      // Auto-heal missing patient row
+      await supabase.from('patients').upsert({
+        id: user.id,
+        full_name: profile?.full_name || 'Patient',
+        email: user.email,
+      }, { onConflict: 'id' });
+
+      const retry = await supabase.from('connections').insert({ patient_id: user.id, doctor_id: doctorId });
+      error = retry.error;
+    }
+
+    if (error) {
+      console.error('Failed to send connection request:', error.message);
+      addToast(`❌ Request failed: ${error.message}`, 'error');
+    } else {
+      addToast(`✅ Connection request sent to doctor!`, 'success');
+    }
+
     await fetchData();
     setSending(null);
   };
@@ -170,6 +192,17 @@ export default function PatientDashboard() {
   const filteredDoctors = allDoctors.filter((d) => {
     const q = searchQuery.toLowerCase();
     return d.full_name?.toLowerCase().includes(q) || d.speciality?.toLowerCase().includes(q) || d.location?.toLowerCase().includes(q);
+  });
+
+  const filteredCheckups = checkups.filter((c) => {
+    if (!historyQuery.trim()) return true;
+    const q = historyQuery.toLowerCase();
+    return (
+      c.symptom_text?.toLowerCase().includes(q) ||
+      c.cause_guess?.toLowerCase().includes(q) ||
+      c.medicine?.toLowerCase().includes(q) ||
+      c.home_remedy?.toLowerCase().includes(q)
+    );
   });
 
   const sev = lastCheckup ? SEVERITY_CFG[lastCheckup.severity] : null;
@@ -468,50 +501,67 @@ export default function PatientDashboard() {
 
             {/* Checkup History */}
             {tab === 'history' && (
-              <div className="checkup-list">
-                {checkups.length === 0 ? (
-                  <div className="empty-state">
-                    <Clock size={32} /><p>No checkups yet</p>
-                    <button className="btn btn--primary btn--sm" onClick={() => navigate('/triage')}>
-                      Start first checkup
-                    </button>
+              <>
+                {checkups.length > 0 && (
+                  <div className="search-bar" style={{ marginBottom: '1.25rem' }}>
+                    <Search size={18} className="search-bar__icon" />
+                    <input
+                      className="form-input search-bar__input"
+                      placeholder="Search symptom history by keyword (e.g. fever, headache, medicine)..."
+                      value={historyQuery}
+                      onChange={(e) => setHistoryQuery(e.target.value)}
+                    />
                   </div>
-                ) : (
-                  checkups.map((c) => (
-                    <div key={c.id} className="checkup-item">
-                      <div
-                        className="checkup-item__header"
-                        onClick={() => setExpandedCheckup(expandedCheckup === c.id ? null : c.id)}
-                      >
-                        <div className="checkup-item__left">
-                          <span className="severity-dot" style={{ background: SEVERITY_CFG[c.severity]?.color || '#94a3b8' }} />
-                          <div>
-                            <div className="checkup-item__symptom">
-                              {c.symptom_text?.slice(0, 60)}{c.symptom_text?.length > 60 ? '…' : ''}
-                            </div>
-                            <div className="checkup-item__date">
-                              {new Date(c.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                )}
+                <div className="checkup-list">
+                  {checkups.length === 0 ? (
+                    <div className="empty-state">
+                      <Clock size={32} /><p>No checkups yet</p>
+                      <button className="btn btn--primary btn--sm" onClick={() => navigate('/triage')}>
+                        Start first checkup
+                      </button>
+                    </div>
+                  ) : filteredCheckups.length === 0 ? (
+                    <div className="empty-state">
+                      <Search size={32} /><p>No matching checkups found</p>
+                    </div>
+                  ) : (
+                    filteredCheckups.map((c) => (
+                      <div key={c.id} className="checkup-item">
+                        <div
+                          className="checkup-item__header"
+                          onClick={() => setExpandedCheckup(expandedCheckup === c.id ? null : c.id)}
+                        >
+                          <div className="checkup-item__left">
+                            <span className="severity-dot" style={{ background: SEVERITY_CFG[c.severity]?.color || '#94a3b8' }} />
+                            <div>
+                              <div className="checkup-item__symptom">
+                                {c.symptom_text?.slice(0, 60)}{c.symptom_text?.length > 60 ? '…' : ''}
+                              </div>
+                              <div className="checkup-item__date">
+                                {new Date(c.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                              </div>
                             </div>
                           </div>
+                          {expandedCheckup === c.id ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
                         </div>
-                        {expandedCheckup === c.id ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                        {expandedCheckup === c.id && (
+                          <div className="checkup-item__details">
+                            <DetailRow label="Symptoms" value={c.symptom_text} />
+                            <DetailRow label="Possible Cause" value={c.cause_guess} />
+                            <DetailRow label="Home Remedy" value={c.home_remedy} />
+                            <DetailRow label="Medicine" value={c.medicine} />
+                            <DetailRow label="Food Advice" value={c.food_advice} />
+                            <DetailRow label="Avoid" value={c.avoid_list} />
+                            <DetailRow label="Future Risk" value={c.future_risk} />
+                            {c.doctor_note && <DetailRow label="Doctor's Note" value={c.doctor_note} highlight />}
+                          </div>
+                        )}
                       </div>
-                      {expandedCheckup === c.id && (
-                        <div className="checkup-item__details">
-                          <DetailRow label="Symptoms" value={c.symptom_text} />
-                          <DetailRow label="Possible Cause" value={c.cause_guess} />
-                          <DetailRow label="Home Remedy" value={c.home_remedy} />
-                          <DetailRow label="Medicine" value={c.medicine} />
-                          <DetailRow label="Food Advice" value={c.food_advice} />
-                          <DetailRow label="Avoid" value={c.avoid_list} />
-                          <DetailRow label="Future Risk" value={c.future_risk} />
-                          {c.doctor_note && <DetailRow label="Doctor's Note" value={c.doctor_note} highlight />}
-                        </div>
-                      )}
-                    </div>
-                  ))
-                )}
-              </div>
+                    ))
+                  )}
+                </div>
+              </>
             )}
           </div>
         </div>
