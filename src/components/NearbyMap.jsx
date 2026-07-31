@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Phone, MapPin, Navigation, AlertTriangle, Locate } from 'lucide-react';
+import { sendWhatsAppSOS } from '../lib/sendWhatsAppSOS';
 
 // ── Hardcoded hospitals near VIT Bhopal ──────────────────────────
 const HOSPITALS = [
@@ -80,6 +81,17 @@ export default function NearbyMap({ onHospitalsFound }) {
     import('leaflet').then((L) => {
       const campusLat = 23.0742;
       const campusLon = 76.8627;
+
+      if (!mapContainerRef.current) return;
+
+      // Prevent Leaflet container already initialized error
+      if (mapRef.current) {
+        try { mapRef.current.remove(); } catch { /* ignore */ }
+        mapRef.current = null;
+      }
+      if (mapContainerRef.current._leaflet_id) {
+        delete mapContainerRef.current._leaflet_id;
+      }
 
       const map = L.map(mapContainerRef.current, {
         zoomControl: false,
@@ -261,10 +273,21 @@ export default function NearbyMap({ onHospitalsFound }) {
       </div>
 
       {/* SOS button */}
-      <a href="tel:112" className="sos-btn" title="Call 112 Emergency">
+      <button
+        type="button"
+        className="sos-btn"
+        title="Send WhatsApp Emergency SOS with Live Location"
+        onClick={async () => {
+          try {
+            await sendWhatsAppSOS({ phone: '112' });
+          } catch {
+            window.location.href = 'tel:112';
+          }
+        }}
+      >
         <AlertTriangle size={18} />
         <span>SOS</span>
-      </a>
+      </button>
 
       <div ref={mapContainerRef} className="map-leaflet" />
     </div>

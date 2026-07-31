@@ -11,8 +11,10 @@ import { calculateAge } from '../lib/utils';
 import {
   Send, Mic, MicOff, Bot, User, AlertTriangle,
   Phone, MapPin, Loader, Globe, Plus, Clock,
-  MessageSquare, ChevronRight, CheckCircle, Sparkles,
+  MessageSquare, ChevronRight, CheckCircle, Sparkles, Share2,
 } from 'lucide-react';
+import SosModal from '../components/SosModal';
+import { sendWhatsAppSOS } from '../lib/sendWhatsAppSOS';
 
 const WELCOME_MSG = {
   role: 'ai', type: 'text',
@@ -38,8 +40,25 @@ export default function TriageChat() {
   const [pendingFollowUp, setPendingFollowUp] = useState(null);
   const [transcribing, setTranscribing] = useState(false);
   const [isCompleted, setIsCompleted] = useState(false);
+  const [sosModalOpen, setSosModalOpen] = useState(false);
   const messagesEndRef = useRef(null);
   const { isRecording, startRecording, stopRecording, error: micError } = useVoiceRecorder();
+
+  const handleWhatsAppSOS = async () => {
+    if (profile?.emergency_contact) {
+      try {
+        await sendWhatsAppSOS({
+          phone: profile.emergency_contact,
+          profile,
+          customMessage: activeSessionTitle ? `Topic: ${activeSessionTitle}` : null,
+        });
+      } catch {
+        setSosModalOpen(true);
+      }
+    } else {
+      setSosModalOpen(true);
+    }
+  };
 
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
@@ -128,13 +147,14 @@ export default function TriageChat() {
   const ensureSession = async (userText) => {
     if (activeSessionId) return activeSessionId;
 
-    // Create initial session with temporary title
-    const tempTitle = userText.slice(0, 40) + (userText.length > 40 ? '…' : '');
+    // Generate smart AI medical topic title
+    const aiTitle = await generateChatTitle(userText);
+
     const { data, error } = await supabase
       .from('triage_sessions')
       .insert({
         patient_id: user.id,
-        title: tempTitle,
+        title: aiTitle,
         messages: [],
       })
       .select('id')
@@ -147,30 +167,18 @@ export default function TriageChat() {
 
     const newId = data.id;
     setActiveSessionId(newId);
-    setActiveSessionTitle(tempTitle);
+    setActiveSessionTitle(aiTitle);
 
     // Refresh sessions list locally
     const newSessionObj = {
       id: newId,
-      title: tempTitle,
+      title: aiTitle,
       severity: null,
       checkup_id: null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
     setSessions((prev) => [newSessionObj, ...prev]);
-
-    // Asynchronously generate AI Medical Title and update DB + UI
-    generateChatTitle(userText).then(async (aiTitle) => {
-      if (aiTitle && aiTitle !== tempTitle) {
-        setActiveSessionTitle(aiTitle);
-        setSessions((prev) => prev.map((s) => s.id === newId ? { ...s, title: aiTitle } : s));
-        await supabase
-          .from('triage_sessions')
-          .update({ title: aiTitle })
-          .eq('id', newId);
-      }
-    });
 
     return newId;
   };
@@ -374,7 +382,13 @@ export default function TriageChat() {
                   </div>
                   <div className="triage-msg__content">
                     {msg.type === 'text' && <div className="triage-msg__bubble">{msg.content}</div>}
-                    {msg.type === 'result' && <ResultCard data={msg.data} severityConfig={SEVERITY_CFG} />}
+                    {msg.type === 'result' && (
+                      <ResultCard
+                        data={msg.data}
+                        severityConfig={SEVERITY_CFG}
+                        onTriggerSOS={handleWhatsAppSOS}
+                      />
+                    )}
                   </div>
                 </div>
               ))}
@@ -427,11 +441,18 @@ export default function TriageChat() {
           </div>
         </div>
       </main>
+
+      {/* Emergency WhatsApp SOS Modal */}
+      <SosModal
+        isOpen={sosModalOpen}
+        onClose={() => setSosModalOpen(false)}
+        profile={profile}
+      />
     </div>
   );
 }
 
-function ResultCard({ data, severityConfig }) {
+function ResultCard({ data, severityConfig, onTriggerSOS }) {
   const sev = severityConfig[data.severity] || severityConfig.medium;
   return (
     <div className="result-card">
@@ -453,7 +474,10 @@ function ResultCard({ data, severityConfig }) {
       {data.severity === 'red' && (
         <div className="result-card__emergency">
           <div className="result-card__emergency-text"><AlertTriangle size={20} /><strong>Needs immediate medical attention!</strong></div>
-          <div className="result-card__emergency-actions">
+          <div className="result-card__emergency-actions" style={{ flexWrap: 'wrap' }}>
+            <button className="btn sos-whatsapp-btn btn--sm" onClick={() => onTriggerSOS && onTriggerSOS()}>
+              <Share2 size={14} /> 🚨 WhatsApp SOS (GPS Location)
+            </button>
             <a href="tel:112" className="btn btn--danger btn--sm"><Phone size={16} /> Call 112</a>
             <a href="https://www.google.com/maps/search/hospital+near+me" target="_blank" rel="noopener noreferrer" className="btn btn--outline btn--sm">
               <MapPin size={16} /> Nearest Hospital

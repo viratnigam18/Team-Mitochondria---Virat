@@ -7,8 +7,10 @@ import {
   MessageCircle, Search, UserPlus, Clock, CheckCircle2,
   XCircle, ChevronDown, ChevronUp, User, Stethoscope,
   GraduationCap, Building2, MapPin, Phone, Droplets,
-  Briefcase, AlertTriangle, X,
+  Briefcase, AlertTriangle, X, Share2,
 } from 'lucide-react';
+import SosModal from '../components/SosModal';
+import { sendWhatsAppSOS } from '../lib/sendWhatsAppSOS';
 
 const NearbyMap = lazy(() => import('../components/NearbyMap'));
 
@@ -31,8 +33,6 @@ export default function PatientDashboard() {
   const [sending, setSending] = useState(null);
   const [hospitals, setHospitals] = useState([]);
   const [lastCheckup, setLastCheckup] = useState(null);
-
-  // Unread badge counts
   const [unreadCounts, setUnreadCounts] = useState({});
 
   // Toast state
@@ -45,6 +45,24 @@ export default function PatientDashboard() {
       setToasts((prev) => prev.filter((t) => t.id !== id));
     }, 5000);
   }, []);
+
+  const [sosModalOpen, setSosModalOpen] = useState(false);
+
+  const handleWhatsAppSOS = async () => {
+    if (profile?.emergency_contact) {
+      try {
+        await sendWhatsAppSOS({
+          phone: profile.emergency_contact,
+          profile,
+        });
+        addToast('🚨 Opening WhatsApp Emergency SOS with live GPS location!', 'success');
+      } catch {
+        setSosModalOpen(true);
+      }
+    } else {
+      setSosModalOpen(true);
+    }
+  };
 
   useEffect(() => { if (user) fetchData(true); }, [user]);
 
@@ -330,10 +348,20 @@ export default function PatientDashboard() {
               </div>
             )}
 
-            {/* Call ambulance */}
-            <a href="tel:102" className="btn btn--danger btn--full ambulance-btn">
-              🚑 Call Ambulance (102)
-            </a>
+            {/* Emergency Actions: Ambulance & WhatsApp SOS */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              <button
+                className="btn sos-whatsapp-btn"
+                onClick={handleWhatsAppSOS}
+                title="Send your live GPS location & medical alert via WhatsApp"
+              >
+                <Share2 size={16} /> 🚨 Send WhatsApp SOS (GPS Location)
+              </button>
+
+              <a href="tel:102" className="btn btn--danger btn--full ambulance-btn">
+                🚑 Call Ambulance (102)
+              </a>
+            </div>
           </div>
 
           {/* ── CENTER: Map ── */}
@@ -525,6 +553,13 @@ export default function PatientDashboard() {
 
       {/* Toast notifications */}
       <ToastContainer toasts={toasts} onDismiss={(id) => setToasts((prev) => prev.filter((t) => t.id !== id))} />
+
+      {/* WhatsApp Emergency SOS Modal */}
+      <SosModal
+        isOpen={sosModalOpen}
+        onClose={() => setSosModalOpen(false)}
+        profile={profile}
+      />
     </div>
   );
 }
