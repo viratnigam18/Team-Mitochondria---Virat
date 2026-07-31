@@ -1308,16 +1308,111 @@ h1,h2,h3,h4,h5,h6 { font-family:'Outfit','Inter',sans-serif; font-weight:700; li
 
 .triage-main { overflow: hidden; }
 
-.triage-container {
-  flex: 1;
+.triage-layout {
   display: flex;
-  flex-direction: column;
+  gap: 0;
+  flex: 1;
   margin: 1rem 1.75rem;
+  height: calc(100dvh - 180px);
   background: var(--surface-0);
   border-radius: var(--radius-xl);
   border: 1px solid var(--surface-200);
   overflow: hidden;
-  height: calc(100dvh - 180px);
+}
+
+/* ── Sessions Panel ── */
+.triage-sessions-panel {
+  width: 260px;
+  min-width: 220px;
+  border-right: 1px solid var(--surface-200);
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-50);
+  flex-shrink: 0;
+}
+
+.triage-sessions-panel__new-btn {
+  display: flex; align-items: center; gap: .5rem;
+  margin: .75rem; padding: .6rem 1rem;
+  background: var(--primary-600); color: white;
+  border: none; border-radius: var(--radius-md);
+  font-family: inherit; font-size: .82rem; font-weight: 600;
+  cursor: pointer; transition: all .2s;
+}
+.triage-sessions-panel__new-btn:hover {
+  background: var(--primary-700);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(var(--primary-rgb, 20, 184, 166), .25);
+}
+
+.triage-sessions-panel__list {
+  flex: 1; overflow-y: auto; padding: 0 .5rem .5rem;
+  display: flex; flex-direction: column; gap: 2px;
+}
+
+.triage-sessions-panel__empty {
+  display: flex; align-items: center; justify-content: center; gap: .4rem;
+  padding: 2rem .75rem; color: var(--text-muted); font-size: .8rem;
+}
+
+.triage-session-item {
+  display: flex; flex-direction: column; gap: 2px;
+  padding: .6rem .75rem;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  cursor: pointer; transition: all .15s;
+  text-align: left; font-family: inherit;
+  width: 100%;
+}
+.triage-session-item:hover {
+  background: var(--surface-100);
+  border-color: var(--surface-200);
+}
+.triage-session-item--active {
+  background: var(--primary-50);
+  border-color: var(--primary-200);
+}
+.triage-session-item--completed {
+  opacity: .75;
+}
+.triage-session-item--active.triage-session-item--completed {
+  opacity: 1;
+}
+
+.triage-session-item__header {
+  display: flex; align-items: center; gap: .35rem;
+}
+.triage-session-item__title {
+  font-size: .78rem; font-weight: 500; color: var(--text-primary);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  flex: 1;
+}
+.triage-session-item__meta {
+  display: flex; align-items: center; gap: .25rem;
+  font-size: .65rem; color: var(--text-muted);
+}
+
+/* ── Chat Container (inside layout) ── */
+.triage-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Completed banner */
+.triage-completed-banner {
+  display: flex; align-items: center; gap: .4rem;
+  padding: .5rem 1rem;
+  background: var(--surface-100);
+  border-bottom: 1px solid var(--surface-200);
+  font-size: .78rem; color: var(--text-secondary);
+}
+.triage-completed-banner button {
+  background: none; border: none; color: var(--primary-600);
+  font-weight: 600; cursor: pointer; text-decoration: underline;
+  font-family: inherit; font-size: inherit; padding: 0;
 }
 
 .triage-messages {
@@ -1427,6 +1522,33 @@ h1,h2,h3,h4,h5,h6 { font-family:'Outfit','Inter',sans-serif; font-weight:700; li
 .result-card__disclaimer { padding: .5rem 1rem .75rem; font-size: .7rem; color: var(--text-muted); font-style: italic; border-top: 1px solid var(--surface-100); }
 .result-field__label { font-size: .75rem; font-weight: 600; color: var(--text-muted); margin-bottom: .1rem; }
 .result-field__value { font-size: .85rem; color: var(--text-primary); line-height: 1.5; }
+
+/* Checkup History severity tag (inline in date row) */
+.checkup-item__severity-tag {
+  display: inline-flex; align-items: center; gap: .2rem;
+  margin-left: .5rem; padding: .1rem .45rem;
+  border-radius: var(--radius-full);
+  font-size: .65rem; font-weight: 700;
+}
+
+/* ── Mobile: hide sessions panel, show as overlay ── */
+@media (max-width: 768px) {
+  .triage-layout {
+    margin: .5rem;
+    height: calc(100dvh - 140px);
+  }
+  .triage-sessions-panel {
+    width: 200px;
+    min-width: 180px;
+  }
+}
+
+@media (max-width: 480px) {
+  .triage-sessions-panel {
+    display: none; /* hide on very small screens */
+  }
+}
+
 
 /* =========================================================
    WELCOME PAGE

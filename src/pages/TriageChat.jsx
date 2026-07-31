@@ -1,28 +1,43 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
 import { useAuth } from '../components/AuthProvider';
+import { supabase } from '../lib/supabaseClient';
 import { analyzeSymptom } from '../lib/analyzeSymptom';
+import { generateChatTitle } from '../lib/generateChatTitle';
 import { useVoiceRecorder } from '../lib/useVoiceRecorder';
 import { transcribeAudio } from '../lib/transcribeAudio';
 import { calculateAge } from '../lib/utils';
 import {
   Send, Mic, MicOff, Bot, User, AlertTriangle,
-  Phone, MapPin, Loader, Globe,
+  Phone, MapPin, Loader, Globe, Plus, Clock,
+  MessageSquare, ChevronRight, CheckCircle, Sparkles,
 } from 'lucide-react';
+
+const WELCOME_MSG = {
+  role: 'ai', type: 'text',
+  content: 'Namaste! 🙏 I\'m Doctorji, your AI health assistant. Describe your symptoms (type or use the mic) and I\'ll help you understand what might be going on.\n\n⚠️ I am not a real doctor — always see a qualified physician for serious issues.',
+};
 
 export default function TriageChat() {
   const { user, profile } = useAuth();
-  const [messages, setMessages] = useState([
-    {
-      role: 'ai', type: 'text',
-      content: 'Namaste! 🙏 I\'m Doctorji, your AI health assistant. Describe your symptoms (type or use the mic) and I\'ll help you understand what might be going on.\n\n⚠️ I am not a real doctor — always see a qualified physician for serious issues.',
-    },
-  ]);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlSessionId = searchParams.get('session');
+
+  // ── Session state ──
+  const [sessions, setSessions] = useState([]);
+  const [activeSessionId, setActiveSessionId] = useState(null);
+  const [activeSessionTitle, setActiveSessionTitle] = useState('');
+  const [messages, setMessages] = useState([WELCOME_MSG]);
+  const [sessionsLoading, setSessionsLoading] = useState(true);
+
+  // ── Chat state ──
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [language, setLanguage] = useState('en');
   const [pendingFollowUp, setPendingFollowUp] = useState(null);
   const [transcribing, setTranscribing] = useState(false);
+  const [isCompleted, setIsCompleted] = useState(false);
   const messagesEndRef = useRef(null);
   const { isRecording, startRecording, stopRecording, error: micError } = useVoiceRecorder();
 
@@ -34,21 +49,171 @@ export default function TriageChat() {
     prevHealthIssue: profile?.prev_health_issue || 'None',
   };
 
-  const doAnalyze = async (text) => {
+  // ── Load sessions on mount or when URL session parameter changes ──
+  useEffect(() => {
+    if (!user) return;
+    loadSessions(urlSessionId);
+  }, [user, urlSessionId]);
+
+  const loadSessions = async (targetSessionId) => {
+    setSessionsLoading(true);
+    const { data } = await supabase
+      .from('triage_sessions')
+      .select('id, title, severity, checkup_id, created_at, updated_at')
+      .eq('patient_id', user.id)
+      .order('updated_at', { ascending: false });
+
+    const sessionsList = data || [];
+    setSessions(sessionsList);
+
+    if (targetSessionId) {
+      const found = sessionsList.find((s) => s.id === targetSessionId);
+      if (found) {
+        await loadSession(found.id);
+        setSessionsLoading(false);
+        return;
+      }
+    }
+
+    // Default: find an active (incomplete) session to resume or load the latest
+    const activeSession = sessionsList.find((s) => !s.checkup_id) || sessionsList[0];
+    if (activeSession) {
+      await loadSession(activeSession.id);
+    }
+    setSessionsLoading(false);
+  };
+
+  const loadSession = async (sessionId) => {
+    const { data } = await supabase
+      .from('triage_sessions')
+      .select('*')
+      .eq('id', sessionId)
+      .single();
+
+    if (data) {
+      setActiveSessionId(data.id);
+      setActiveSessionTitle(data.title || 'Health Triage');
+      const parsedMessages = data.messages || [];
+      setMessages(parsedMessages.length > 0 ? parsedMessages : [WELCOME_MSG]);
+      setIsCompleted(!!data.checkup_id);
+    }
+  };
+
+  // ── Create a new session ──
+  const createNewSession = async () => {
+    // Save current session first if it has content
+    if (activeSessionId && messages.length > 1) {
+      await saveSessionMessages(activeSessionId, messages);
+    }
+
+    setActiveSessionId(null);
+    setActiveSessionTitle('');
+    setMessages([WELCOME_MSG]);
+    setPendingFollowUp(null);
+    setIsCompleted(false);
+    setInput('');
+    setSearchParams({});
+  };
+
+  // ── Save messages to the active session ──
+  const saveSessionMessages = useCallback(async (sessionId, msgs, extra = {}) => {
+    if (!sessionId || !user) return;
+    await supabase
+      .from('triage_sessions')
+      .update({ messages: msgs, updated_at: new Date().toISOString(), ...extra })
+      .eq('id', sessionId);
+  }, [user]);
+
+  // ── Create or update session on first user message with AI Title ──
+  const ensureSession = async (userText) => {
+    if (activeSessionId) return activeSessionId;
+
+    // Create initial session with temporary title
+    const tempTitle = userText.slice(0, 40) + (userText.length > 40 ? '…' : '');
+    const { data, error } = await supabase
+      .from('triage_sessions')
+      .insert({
+        patient_id: user.id,
+        title: tempTitle,
+        messages: [],
+      })
+      .select('id')
+      .single();
+
+    if (error) {
+      console.error('Failed to create triage session:', error.message);
+      return null;
+    }
+
+    const newId = data.id;
+    setActiveSessionId(newId);
+    setActiveSessionTitle(tempTitle);
+
+    // Refresh sessions list locally
+    const newSessionObj = {
+      id: newId,
+      title: tempTitle,
+      severity: null,
+      checkup_id: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    setSessions((prev) => [newSessionObj, ...prev]);
+
+    // Asynchronously generate AI Medical Title and update DB + UI
+    generateChatTitle(userText).then(async (aiTitle) => {
+      if (aiTitle && aiTitle !== tempTitle) {
+        setActiveSessionTitle(aiTitle);
+        setSessions((prev) => prev.map((s) => s.id === newId ? { ...s, title: aiTitle } : s));
+        await supabase
+          .from('triage_sessions')
+          .update({ title: aiTitle })
+          .eq('id', newId);
+      }
+    });
+
+    return newId;
+  };
+
+  // ── Analyze symptoms ──
+  const doAnalyze = async (text, currentMessages) => {
     setLoading(true);
     try {
       const symptomText = pendingFollowUp ? `${pendingFollowUp}\n\nAdditional info: ${text}` : text;
       const result = await analyzeSymptom(symptomText, patientContext, user?.id);
 
+      let updatedMessages;
       if (result.follow_up_question && !pendingFollowUp) {
         setPendingFollowUp(text);
-        setMessages((prev) => [...prev, { role: 'ai', type: 'text', content: result.follow_up_question }]);
+        updatedMessages = [...currentMessages, { role: 'ai', type: 'text', content: result.follow_up_question }];
       } else {
         setPendingFollowUp(null);
-        setMessages((prev) => [...prev, { role: 'ai', type: 'result', data: result }]);
+        updatedMessages = [...currentMessages, { role: 'ai', type: 'result', data: result }];
+      }
+
+      setMessages(updatedMessages);
+
+      // Save to session
+      const sessionId = activeSessionId;
+      if (sessionId) {
+        const extra = {};
+        // If analysis is complete (has result card), mark session as completed
+        if (!result.follow_up_question && result.saved && result.checkupId) {
+          extra.severity = result.severity;
+          extra.checkup_id = result.checkupId;
+          setIsCompleted(true);
+
+          // Update sessions list
+          setSessions((prev) => prev.map((s) =>
+            s.id === sessionId ? { ...s, severity: result.severity, checkup_id: result.checkupId } : s
+          ));
+        }
+        await saveSessionMessages(sessionId, updatedMessages, extra);
       }
     } catch (err) {
-      setMessages((prev) => [...prev, { role: 'ai', type: 'text', content: `❌ ${err.message}` }]);
+      const errMessages = [...currentMessages, { role: 'ai', type: 'text', content: `❌ ${err.message}` }];
+      setMessages(errMessages);
+      if (activeSessionId) await saveSessionMessages(activeSessionId, errMessages);
     } finally {
       setLoading(false);
     }
@@ -58,8 +223,17 @@ export default function TriageChat() {
     const text = input.trim();
     if (!text || loading) return;
     setInput('');
-    setMessages((prev) => [...prev, { role: 'user', type: 'text', content: text }]);
-    await doAnalyze(text);
+
+    // Ensure session exists
+    const sessionId = await ensureSession(text);
+
+    const updatedMessages = [...messages, { role: 'user', type: 'text', content: text }];
+    setMessages(updatedMessages);
+
+    // Save user message immediately
+    if (sessionId) await saveSessionMessages(sessionId, updatedMessages);
+
+    await doAnalyze(text, updatedMessages);
   };
 
   const handleKeyDown = (e) => {
@@ -77,7 +251,13 @@ export default function TriageChat() {
         if (transcript) {
           setMessages((prev) => { const u = [...prev]; u[u.length - 1] = { role: 'user', type: 'text', content: transcript }; return u; });
           setTranscribing(false);
-          await doAnalyze(transcript);
+
+          const sessionId = await ensureSession(transcript);
+          const updatedMessages = messages.slice(0, -1);
+          updatedMessages.push({ role: 'user', type: 'text', content: transcript });
+          if (sessionId) await saveSessionMessages(sessionId, updatedMessages);
+
+          await doAnalyze(transcript, updatedMessages);
         } else {
           setMessages((prev) => { const u = [...prev]; u[u.length - 1] = { role: 'ai', type: 'text', content: 'Could not understand. Please try again.' }; return u; });
         }
@@ -92,9 +272,21 @@ export default function TriageChat() {
   };
 
   const SEVERITY_CFG = {
-    green:  { label: 'Low Severity', color: '#22c55e', bg: '#dcfce7' },
-    medium: { label: 'Medium Severity', color: '#eab308', bg: '#fef9c3' },
-    red:    { label: 'High Severity — Emergency', color: '#ef4444', bg: '#fee2e2' },
+    green:  { label: 'Low Severity', color: '#22c55e', bg: '#dcfce7', dot: '#22c55e' },
+    medium: { label: 'Medium Severity', color: '#eab308', bg: '#fef9c3', dot: '#eab308' },
+    red:    { label: 'High Severity — Emergency', color: '#ef4444', bg: '#fee2e2', dot: '#ef4444' },
+  };
+
+  const handleSessionClick = async (session) => {
+    if (session.id === activeSessionId) return;
+
+    // Save current messages before switching
+    if (activeSessionId && messages.length > 1) {
+      await saveSessionMessages(activeSessionId, messages);
+    }
+
+    setSearchParams({ session: session.id });
+    await loadSession(session.id);
   };
 
   return (
@@ -104,68 +296,135 @@ export default function TriageChat() {
         <div className="page-header">
           <div>
             <h1 className="page-title">AI Triage Chat</h1>
-            <p className="page-subtitle">Describe your symptoms — AI will analyze and advise</p>
+            <p className="page-subtitle">
+              {activeSessionTitle ? (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', color: 'var(--primary-600)', fontWeight: 600 }}>
+                  <Sparkles size={14} /> Topic: {activeSessionTitle}
+                </span>
+              ) : (
+                'Describe your symptoms — AI will analyze and advise'
+              )}
+            </p>
           </div>
         </div>
 
-        <div className="triage-container">
-          {/* Messages */}
-          <div className="triage-messages">
-            {messages.map((msg, i) => (
-              <div key={i} className={`triage-msg ${msg.role === 'user' ? 'triage-msg--user' : 'triage-msg--ai'}`}>
-                <div className="triage-msg__avatar">
-                  {msg.role === 'user' ? <User size={16} /> : <Bot size={16} />}
+        <div className="triage-layout">
+          {/* ── Sessions Sidebar ── */}
+          <div className="triage-sessions-panel">
+            <button className="triage-sessions-panel__new-btn" onClick={createNewSession}>
+              <Plus size={16} /> New Chat
+            </button>
+
+            <div className="triage-sessions-panel__list">
+              {sessionsLoading ? (
+                <div className="triage-sessions-panel__empty">
+                  <Loader size={16} className="spin" /> Loading...
                 </div>
-                <div className="triage-msg__content">
-                  {msg.type === 'text' && <div className="triage-msg__bubble">{msg.content}</div>}
-                  {msg.type === 'result' && <ResultCard data={msg.data} severityConfig={SEVERITY_CFG} />}
+              ) : sessions.length === 0 ? (
+                <div className="triage-sessions-panel__empty">
+                  <MessageSquare size={16} />
+                  <span>No previous chats</span>
                 </div>
-              </div>
-            ))}
-            {loading && (
-              <div className="triage-msg triage-msg--ai">
-                <div className="triage-msg__avatar"><Bot size={16} /></div>
-                <div className="triage-msg__content">
-                  <div className="triage-msg__bubble triage-msg__typing">
-                    <Loader size={16} className="spin" /> Analyzing symptoms...
-                  </div>
-                </div>
-              </div>
-            )}
-            <div ref={messagesEndRef} />
+              ) : (
+                sessions.map((s) => (
+                  <button
+                    key={s.id}
+                    className={`triage-session-item ${s.id === activeSessionId ? 'triage-session-item--active' : ''} ${s.checkup_id ? 'triage-session-item--completed' : ''}`}
+                    onClick={() => handleSessionClick(s)}
+                  >
+                    <div className="triage-session-item__header">
+                      {s.severity && (
+                        <span
+                          className="severity-dot"
+                          style={{ background: SEVERITY_CFG[s.severity]?.dot || '#94a3b8' }}
+                        />
+                      )}
+                      <span className="triage-session-item__title">
+                        {s.title || 'New Chat'}
+                      </span>
+                    </div>
+                    <div className="triage-session-item__meta">
+                      <Clock size={11} />
+                      {new Date(s.updated_at || s.created_at).toLocaleDateString('en-IN', {
+                        day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+                      })}
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
           </div>
 
-          {/* Input bar */}
-          <div className="triage-input-bar">
-            <button
-              className={`triage-lang-btn ${language === 'hi' ? 'triage-lang-btn--active' : ''}`}
-              onClick={() => setLanguage((l) => l === 'en' ? 'hi' : 'en')}
-              title="Toggle Hindi/English"
-            >
-              <Globe size={16} />
-              <span>{language === 'en' ? 'EN' : 'हि'}</span>
-            </button>
-            <input
-              className="form-input triage-input"
-              placeholder={language === 'en' ? 'Describe your symptoms...' : 'अपने लक्षण बताएं...'}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              disabled={loading || transcribing}
-            />
-            <button
-              className={`triage-mic-btn ${isRecording ? 'triage-mic-btn--recording' : ''}`}
-              onClick={handleMicToggle}
-              disabled={loading || transcribing}
-            >
-              {isRecording ? <MicOff size={20} /> : <Mic size={20} />}
-              {isRecording && <span className="triage-mic-btn__pulse" />}
-            </button>
-            <button className="btn btn--primary triage-send-btn" onClick={handleSend} disabled={loading || !input.trim() || transcribing}>
-              <Send size={18} />
-            </button>
+          {/* ── Chat Area ── */}
+          <div className="triage-container">
+            {/* Completed session banner */}
+            {isCompleted && (
+              <div className="triage-completed-banner">
+                <CheckCircle size={14} />
+                <span>This conversation is complete. Start a <button onClick={createNewSession}>new chat</button> to describe new symptoms.</span>
+              </div>
+            )}
+
+            {/* Messages */}
+            <div className="triage-messages">
+              {messages.map((msg, i) => (
+                <div key={i} className={`triage-msg ${msg.role === 'user' ? 'triage-msg--user' : 'triage-msg--ai'}`}>
+                  <div className="triage-msg__avatar">
+                    {msg.role === 'user' ? <User size={16} /> : <Bot size={16} />}
+                  </div>
+                  <div className="triage-msg__content">
+                    {msg.type === 'text' && <div className="triage-msg__bubble">{msg.content}</div>}
+                    {msg.type === 'result' && <ResultCard data={msg.data} severityConfig={SEVERITY_CFG} />}
+                  </div>
+                </div>
+              ))}
+              {loading && (
+                <div className="triage-msg triage-msg--ai">
+                  <div className="triage-msg__avatar"><Bot size={16} /></div>
+                  <div className="triage-msg__content">
+                    <div className="triage-msg__bubble triage-msg__typing">
+                      <Loader size={16} className="spin" /> Analyzing symptoms...
+                    </div>
+                  </div>
+                </div>
+              )}
+              <div ref={messagesEndRef} />
+            </div>
+
+            {/* Input bar */}
+            {!isCompleted && (
+              <div className="triage-input-bar">
+                <button
+                  className={`triage-lang-btn ${language === 'hi' ? 'triage-lang-btn--active' : ''}`}
+                  onClick={() => setLanguage((l) => l === 'en' ? 'hi' : 'en')}
+                  title="Toggle Hindi/English"
+                >
+                  <Globe size={16} />
+                  <span>{language === 'en' ? 'EN' : 'हि'}</span>
+                </button>
+                <input
+                  className="form-input triage-input"
+                  placeholder={language === 'en' ? 'Describe your symptoms...' : 'अपने लक्षण बताएं...'}
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  disabled={loading || transcribing}
+                />
+                <button
+                  className={`triage-mic-btn ${isRecording ? 'triage-mic-btn--recording' : ''}`}
+                  onClick={handleMicToggle}
+                  disabled={loading || transcribing}
+                >
+                  {isRecording ? <MicOff size={20} /> : <Mic size={20} />}
+                  {isRecording && <span className="triage-mic-btn__pulse" />}
+                </button>
+                <button className="btn btn--primary triage-send-btn" onClick={handleSend} disabled={loading || !input.trim() || transcribing}>
+                  <Send size={18} />
+                </button>
+              </div>
+            )}
+            {micError && <div className="alert alert--error" style={{ margin: '0 1rem .5rem' }}>{micError}</div>}
           </div>
-          {micError && <div className="alert alert--error" style={{ margin: '0 1rem .5rem' }}>{micError}</div>}
         </div>
       </main>
     </div>

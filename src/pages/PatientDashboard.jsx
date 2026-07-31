@@ -46,7 +46,7 @@ export default function PatientDashboard() {
     }, 5000);
   }, []);
 
-  useEffect(() => { if (user) fetchData(); }, [user]);
+  useEffect(() => { if (user) fetchData(true); }, [user]);
 
   // Realtime: connection status changes (doctor accepted/rejected)
   useEffect(() => {
@@ -170,18 +170,24 @@ export default function PatientDashboard() {
     setUnreadCounts(counts);
   };
 
-  const fetchData = async () => {
-    setLoading(true);
-    const [connRes, docRes, checkRes] = await Promise.all([
+  const [triageSessions, setTriageSessions] = useState([]);
+  const [lastSession, setLastSession] = useState(null);
+
+  const fetchData = async (isInitial = false) => {
+    if (isInitial) setLoading(true);
+    const [connRes, docRes, checkRes, sessionRes] = await Promise.all([
       supabase.from('connections').select('*, doctors(*)').eq('patient_id', user.id).order('created_at', { ascending: false }),
       supabase.from('doctors').select('*').order('full_name'),
       supabase.from('checkups').select('*').eq('patient_id', user.id).order('created_at', { ascending: false }),
+      supabase.from('triage_sessions').select('*').eq('patient_id', user.id).order('updated_at', { ascending: false }),
     ]);
     setMyConnections(connRes.data || []);
     setAllDoctors(docRes.data || []);
     setCheckups(checkRes.data || []);
     setLastCheckup((checkRes.data || [])[0] || null);
-    setLoading(false);
+    setTriageSessions(sessionRes.data || []);
+    setLastSession((sessionRes.data || [])[0] || null);
+    if (isInitial) setLoading(false);
   };
 
   const [historyQuery, setHistoryQuery] = useState('');
@@ -221,25 +227,15 @@ export default function PatientDashboard() {
     return d.full_name?.toLowerCase().includes(q) || d.speciality?.toLowerCase().includes(q) || d.location?.toLowerCase().includes(q);
   });
 
-  const filteredCheckups = checkups.filter((c) => {
-    if (!historyQuery.trim()) return true;
-    const q = historyQuery.toLowerCase();
-    return (
-      c.symptom_text?.toLowerCase().includes(q) ||
-      c.cause_guess?.toLowerCase().includes(q) ||
-      c.medicine?.toLowerCase().includes(q) ||
-      c.home_remedy?.toLowerCase().includes(q)
-    );
-  });
-
   const openChat = (connectionId) => {
     navigate(`/messages?connectionId=${connectionId}`);
   };
 
   const totalUnread = Object.values(unreadCounts).reduce((sum, c) => sum + c, 0);
 
-  // Derive severity display from last checkup
-  const sev = lastCheckup?.severity ? SEVERITY_CFG[lastCheckup.severity] : null;
+  // Derive severity display from last session or last checkup
+  const activeSeverity = lastSession?.severity || lastCheckup?.severity;
+  const sev = activeSeverity ? SEVERITY_CFG[activeSeverity] : null;
 
   return (
     <div className="app-layout">
@@ -275,8 +271,8 @@ export default function PatientDashboard() {
             <span className="stat-pill__label">Pending</span>
           </div>
           <div className="stat-pill">
-            <span className="stat-pill__value">{checkups.length}</span>
-            <span className="stat-pill__label">Checkups</span>
+            <span className="stat-pill__value">{triageSessions.length}</span>
+            <span className="stat-pill__label">Triage Chats</span>
           </div>
         </div>
 
@@ -297,23 +293,27 @@ export default function PatientDashboard() {
             {/* Emergency severity */}
             <div className="widget-card">
               <div className="widget-card__title">
-                <AlertTriangle size={16} /> Last Checkup Severity
+                <AlertTriangle size={16} /> Last Triage Severity
               </div>
               {sev ? (
-                <div className="severity-gauge" style={{ background: sev.bg }}>
+                <div
+                  className="severity-gauge"
+                  style={{ background: sev.bg, cursor: lastSession ? 'pointer' : 'default' }}
+                  onClick={() => lastSession && navigate(`/triage?session=${lastSession.id}`)}
+                >
                   <div className="severity-gauge__emoji">{sev.emoji}</div>
                   <div className="severity-gauge__label" style={{ color: sev.color }}>
                     {sev.label.toUpperCase()}
                   </div>
-                  {lastCheckup?.cause_guess && (
+                  {(lastSession?.title || lastCheckup?.cause_guess) && (
                     <div className="severity-gauge__cause">
-                      {lastCheckup.cause_guess.slice(0, 60)}...
+                      {(lastSession?.title || lastCheckup?.cause_guess).slice(0, 60)}
                     </div>
                   )}
                 </div>
               ) : (
                 <div className="severity-gauge severity-gauge--empty">
-                  <span>No checkups yet</span>
+                  <span>No triage chats yet</span>
                 </div>
               )}
             </div>
@@ -345,30 +345,47 @@ export default function PatientDashboard() {
 
           {/* ── RIGHT: Hospital directory + activity ── */}
           <div className="dashboard-grid__right">
-            {/* Recent activity */}
+            {/* Triage Chat History */}
             <div className="widget-card">
               <div className="widget-card__title">
-                <Clock size={16} /> Recent Activity
+                <Clock size={16} /> Triage Chat History
               </div>
-              {checkups.length === 0 ? (
-                <p className="widget-empty">No checkups yet</p>
+              {triageSessions.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '1rem' }}>
+                  <p className="widget-empty">No triage chats yet</p>
+                  <button
+                    className="btn btn--primary btn--sm"
+                    onClick={() => navigate('/triage')}
+                    style={{ marginTop: '0.5rem' }}
+                  >
+                    Start First Chat
+                  </button>
+                </div>
               ) : (
                 <div className="activity-list">
-                  {checkups.slice(0, 4).map((c) => (
-                    <div key={c.id} className="activity-item">
+                  {triageSessions.slice(0, 4).map((s) => (
+                    <div
+                      key={s.id}
+                      className="activity-item"
+                      style={{ cursor: 'pointer' }}
+                      onClick={() => navigate(`/triage?session=${s.id}`)}
+                      title="Click to view conversation"
+                    >
                       <span
                         className="severity-dot"
-                        style={{ background: SEVERITY_CFG[c.severity]?.color || '#94a3b8' }}
+                        style={{ background: SEVERITY_CFG[s.severity]?.color || '#94a3b8' }}
                       />
                       <div className="activity-item__text">
                         <div className="activity-item__symptom">
-                          {c.symptom_text?.slice(0, 40)}{c.symptom_text?.length > 40 ? '…' : ''}
+                          {s.title || 'Health Triage'}
                         </div>
                         <div className="activity-item__date">
-                          {new Date(c.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                          {new Date(s.updated_at || s.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
                         </div>
                       </div>
-                      <span className="activity-item__tag">AI Analysis</span>
+                      <span className="activity-item__tag">
+                        {s.checkup_id ? 'Completed' : 'Active'}
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -431,7 +448,6 @@ export default function PatientDashboard() {
             {[
               { id: 'doctors', label: '🩺 My Doctors' },
               { id: 'find', label: '🔍 Find Doctor' },
-              { id: 'history', label: '📋 Checkup History' },
             ].map((t) => (
               <button
                 key={t.id}
@@ -502,70 +518,7 @@ export default function PatientDashboard() {
               </>
             )}
 
-            {/* Checkup History */}
-            {tab === 'history' && (
-              <>
-                {checkups.length > 0 && (
-                  <div className="search-bar" style={{ marginBottom: '1.25rem' }}>
-                    <Search size={18} className="search-bar__icon" />
-                    <input
-                      className="form-input search-bar__input"
-                      placeholder="Search symptom history by keyword (e.g. fever, headache, medicine)..."
-                      value={historyQuery}
-                      onChange={(e) => setHistoryQuery(e.target.value)}
-                    />
-                  </div>
-                )}
-                <div className="checkup-list">
-                  {checkups.length === 0 ? (
-                    <div className="empty-state">
-                      <Clock size={32} /><p>No checkups yet</p>
-                      <button className="btn btn--primary btn--sm" onClick={() => navigate('/triage')}>
-                        Start first checkup
-                      </button>
-                    </div>
-                  ) : filteredCheckups.length === 0 ? (
-                    <div className="empty-state">
-                      <Search size={32} /><p>No matching checkups found</p>
-                    </div>
-                  ) : (
-                    filteredCheckups.map((c) => (
-                      <div key={c.id} className="checkup-item">
-                        <div
-                          className="checkup-item__header"
-                          onClick={() => setExpandedCheckup(expandedCheckup === c.id ? null : c.id)}
-                        >
-                          <div className="checkup-item__left">
-                            <span className="severity-dot" style={{ background: SEVERITY_CFG[c.severity]?.color || '#94a3b8' }} />
-                            <div>
-                              <div className="checkup-item__symptom">
-                                {c.symptom_text?.slice(0, 60)}{c.symptom_text?.length > 60 ? '…' : ''}
-                              </div>
-                              <div className="checkup-item__date">
-                                {new Date(c.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                              </div>
-                            </div>
-                          </div>
-                          {expandedCheckup === c.id ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-                        </div>
-                        {expandedCheckup === c.id && (
-                          <div className="checkup-item__details">
-                            <DetailRow label="Symptoms" value={c.symptom_text} />
-                            <DetailRow label="Possible Cause" value={c.cause_guess} />
-                            <DetailRow label="Home Remedy" value={c.home_remedy} />
-                            <DetailRow label="Medicine" value={c.medicine} />
-                            <DetailRow label="Food Advice" value={c.food_advice} />
-                            <DetailRow label="Avoid" value={c.avoid_list} />
-                            <DetailRow label="Future Risk" value={c.future_risk} />
-                            {c.doctor_note && <DetailRow label="Doctor's Note" value={c.doctor_note} highlight />}
-                          </div>
-                        )}
-                      </div>
-                    ))
-                  )}
-                </div>
-              </>
-            )}
+            {/* Checkup History removed — now on /patient/history */}
           </div>
         </div>
       </main>

@@ -7,6 +7,7 @@ import {
   MessageCircle,
   User,
   LogOut,
+  HeartPulse,
 } from 'lucide-react';
 
 export default function Sidebar() {
@@ -68,7 +69,7 @@ export default function Sidebar() {
   const patientLinks = [
     { to: '/patient/dashboard', icon: <LayoutDashboard size={20} />, label: 'Dashboard' },
     { to: '/messages', icon: <MessageCircle size={20} />, label: 'Messages', badge: totalUnread },
-    { to: '/triage', icon: <MessageCircle size={20} />, label: 'Triage' },
+    { to: '/triage', icon: <HeartPulse size={20} />, label: 'Triage' },
     { to: '/patient/profile', icon: <User size={20} />, label: 'Profile' },
   ];
 

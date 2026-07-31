@@ -172,3 +172,39 @@ CREATE POLICY "Doctors can add notes to checkups"
         AND connections.status = 'accepted'
     )
   );
+
+-- ─── Triage Sessions Table ───
+-- Stores full AI triage conversation threads (messages array)
+CREATE TABLE IF NOT EXISTS triage_sessions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  patient_id UUID NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
+  title TEXT,
+  messages JSONB NOT NULL DEFAULT '[]'::jsonb,
+  severity TEXT CHECK (severity IS NULL OR severity IN ('green', 'medium', 'red')),
+  checkup_id UUID REFERENCES checkups(id),
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+ALTER TABLE triage_sessions ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Patients can insert own triage sessions" ON triage_sessions;
+DROP POLICY IF EXISTS "Patients can view own triage sessions" ON triage_sessions;
+DROP POLICY IF EXISTS "Patients can update own triage sessions" ON triage_sessions;
+DROP POLICY IF EXISTS "Patients can delete own triage sessions" ON triage_sessions;
+
+CREATE POLICY "Patients can insert own triage sessions"
+  ON triage_sessions FOR INSERT
+  WITH CHECK (auth.uid() = patient_id);
+
+CREATE POLICY "Patients can view own triage sessions"
+  ON triage_sessions FOR SELECT
+  USING (auth.uid() = patient_id);
+
+CREATE POLICY "Patients can update own triage sessions"
+  ON triage_sessions FOR UPDATE
+  USING (auth.uid() = patient_id);
+
+CREATE POLICY "Patients can delete own triage sessions"
+  ON triage_sessions FOR DELETE
+  USING (auth.uid() = patient_id);

@@ -157,6 +157,7 @@ Analyze these symptoms and respond with the JSON format specified.`;
   // Save completed analysis to checkups table
   let isSaved = false;
   let saveErrorMessage = null;
+  let savedCheckupId = null;
 
   try {
     // 1. Get exact authenticated user ID from active Supabase session to satisfy RLS policy
@@ -175,7 +176,7 @@ Analyze these symptoms and respond with the JSON format specified.`;
         email: userEmail,
       }, { onConflict: 'id', ignoreDuplicates: true });
 
-      // 3. Insert checkup record
+      // 3. Insert checkup record and return the generated ID
       const checkupPayload = {
         patient_id: targetPatientId,
         symptom_text: symptomText,
@@ -189,7 +190,11 @@ Analyze these symptoms and respond with the JSON format specified.`;
         avoid_list: parsed.avoid_list,
       };
 
-      let { error: dbError } = await supabase.from('checkups').insert(checkupPayload);
+      let { data: insertedRow, error: dbError } = await supabase
+        .from('checkups')
+        .insert(checkupPayload)
+        .select('id')
+        .single();
 
       if (dbError) {
         console.error('Failed to save checkup to DB:', dbError.message);
@@ -197,6 +202,7 @@ Analyze these symptoms and respond with the JSON format specified.`;
       } else {
         console.log('✅ Checkup successfully saved to patient history!');
         isSaved = true;
+        savedCheckupId = insertedRow?.id || null;
       }
     }
   } catch (err) {
@@ -204,5 +210,6 @@ Analyze these symptoms and respond with the JSON format specified.`;
     saveErrorMessage = err.message;
   }
 
-  return { ...parsed, saved: isSaved, saveError: saveErrorMessage };
+  return { ...parsed, saved: isSaved, saveError: saveErrorMessage, checkupId: savedCheckupId };
 }
+

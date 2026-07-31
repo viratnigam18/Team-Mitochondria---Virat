@@ -147,8 +147,8 @@ export default function DoctorDashboard() {
     setUnreadCounts(counts);
   };
 
-  const fetchData = async () => {
-    setLoading(true);
+  const fetchData = async (isInitial = false) => {
+    if (isInitial) setLoading(true);
     const [pendRes, accRes] = await Promise.all([
       supabase.from('connections').select('*, patients(*)').eq('doctor_id', user.id).eq('status', 'pending').order('created_at', { ascending: false }),
       supabase.from('connections').select('*, patients(*)').eq('doctor_id', user.id).eq('status', 'accepted').order('created_at', { ascending: false }),
@@ -162,7 +162,7 @@ export default function DoctorDashboard() {
       })
     );
     setConnectedPatients(withFlags);
-    setLoading(false);
+    if (isInitial) setLoading(false);
   };
 
   const updateConn = async (id, status) => {
