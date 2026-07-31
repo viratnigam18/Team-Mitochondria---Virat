@@ -184,7 +184,7 @@ export default function TriageChat() {
   };
 
   // ── Analyze symptoms ──
-  const doAnalyze = async (text, currentMessages) => {
+  const doAnalyze = async (text, currentMessages, sessionId) => {
     setLoading(true);
     try {
       const symptomText = pendingFollowUp ? `${pendingFollowUp}\n\nAdditional info: ${text}` : text;
@@ -202,7 +202,6 @@ export default function TriageChat() {
       setMessages(updatedMessages);
 
       // Save to session
-      const sessionId = activeSessionId;
       if (sessionId) {
         const extra = {};
         // If analysis is complete (has result card), mark session as completed
@@ -221,7 +220,7 @@ export default function TriageChat() {
     } catch (err) {
       const errMessages = [...currentMessages, { role: 'ai', type: 'text', content: `❌ ${err.message}` }];
       setMessages(errMessages);
-      if (activeSessionId) await saveSessionMessages(activeSessionId, errMessages);
+      if (sessionId) await saveSessionMessages(sessionId, errMessages);
     } finally {
       setLoading(false);
     }
@@ -232,16 +231,17 @@ export default function TriageChat() {
     if (!text || loading) return;
     setInput('');
 
-    // Ensure session exists
-    const sessionId = await ensureSession(text);
-
+    // Add user message to chat immediately so it doesn't disappear
     const updatedMessages = [...messages, { role: 'user', type: 'text', content: text }];
     setMessages(updatedMessages);
+
+    // Ensure session exists (may call AI for title — takes time)
+    const sessionId = await ensureSession(text);
 
     // Save user message immediately
     if (sessionId) await saveSessionMessages(sessionId, updatedMessages);
 
-    await doAnalyze(text, updatedMessages);
+    await doAnalyze(text, updatedMessages, sessionId);
   };
 
   const handleKeyDown = (e) => {
@@ -260,12 +260,14 @@ export default function TriageChat() {
           setMessages((prev) => { const u = [...prev]; u[u.length - 1] = { role: 'user', type: 'text', content: transcript }; return u; });
           setTranscribing(false);
 
-          const sessionId = await ensureSession(transcript);
           const updatedMessages = messages.slice(0, -1);
           updatedMessages.push({ role: 'user', type: 'text', content: transcript });
+          setMessages(updatedMessages);
+
+          const sessionId = await ensureSession(transcript);
           if (sessionId) await saveSessionMessages(sessionId, updatedMessages);
 
-          await doAnalyze(transcript, updatedMessages);
+          await doAnalyze(transcript, updatedMessages, sessionId);
         } else {
           setMessages((prev) => { const u = [...prev]; u[u.length - 1] = { role: 'ai', type: 'text', content: 'Could not understand. Please try again.' }; return u; });
         }

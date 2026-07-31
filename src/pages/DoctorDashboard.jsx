@@ -42,7 +42,7 @@ export default function DoctorDashboard() {
     }, 5000);
   }, []);
 
-  useEffect(() => { if (user) fetchData(); }, [user]);
+  useEffect(() => { if (user) fetchData(true); }, [user]);
 
   // Realtime subscription for new connection requests + auto-refresh
   useEffect(() => {
